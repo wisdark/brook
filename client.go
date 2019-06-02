@@ -1,8 +1,21 @@
+// Copyright (c) 2016-present Cloud <cloud@txthinking.com>
+//
+// This program is free software; you can redistribute it and/or
+// modify it under the terms of version 3 of the GNU General Public
+// License as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 package brook
 
 import (
 	"bytes"
-	"encoding/binary"
 	"errors"
 	"io"
 	"log"
@@ -10,12 +23,12 @@ import (
 	"time"
 
 	cache "github.com/patrickmn/go-cache"
-	"github.com/txthinking/ant"
 	"github.com/txthinking/brook/plugin"
 	"github.com/txthinking/socks5"
+	xx "github.com/txthinking/x"
 )
 
-// Client
+// Client.
 type Client struct {
 	Server          *socks5.Server
 	RemoteAddr      string
@@ -26,10 +39,9 @@ type Client struct {
 	TCPListen       *net.TCPListener
 	Socks5Middleman plugin.Socks5Middleman
 	HTTPMiddleman   plugin.HTTPMiddleman
-	TokenGetter     plugin.TokenGetter
 }
 
-// NewClient returns a new Client
+// NewClient returns a new Client.
 func NewClient(addr, ip, server, password string, tcpTimeout, tcpDeadline, udpDeadline, udpSessionTime int) (*Client, error) {
 	s5, err := socks5.NewClassicServer(addr, ip, "", "", tcpTimeout, tcpDeadline, udpDeadline, udpSessionTime)
 	if err != nil {
@@ -46,28 +58,22 @@ func NewClient(addr, ip, server, password string, tcpTimeout, tcpDeadline, udpDe
 	return x, nil
 }
 
-// SetToken sets token plugin
-func (x *Client) SetTokenGetter(token plugin.TokenGetter) {
-	x.TokenGetter = token
-}
-
-// SetSocks5Middleman sets socks5middleman plugin
+// SetSocks5Middleman sets socks5middleman plugin.
 func (x *Client) SetSocks5Middleman(m plugin.Socks5Middleman) {
 	x.Socks5Middleman = m
 }
 
-// SetHTTPMiddleman sets httpmiddleman plugin
+// SetHTTPMiddleman sets httpmiddleman plugin.
 func (x *Client) SetHTTPMiddleman(m plugin.HTTPMiddleman) {
 	x.HTTPMiddleman = m
 }
 
-// ListenAndServe will let client start a socks5 proxy
-// sm can be nil
+// ListenAndServe will let client start a socks5 proxy.
 func (x *Client) ListenAndServe() error {
 	return x.Server.Run(x)
 }
 
-// TCPHandle handles tcp request
+// TCPHandle handles tcp request.
 func (x *Client) TCPHandle(s *socks5.Server, c *net.TCPConn, r *socks5.Request) error {
 	if x.Socks5Middleman != nil {
 		done, err := x.Socks5Middleman.TCPHandle(s, c, r)
@@ -112,19 +118,6 @@ func (x *Client) TCPHandle(s *socks5.Server, c *net.TCPConn, r *socks5.Request) 
 		rawaddr = append(rawaddr, r.Atyp)
 		rawaddr = append(rawaddr, r.DstAddr...)
 		rawaddr = append(rawaddr, r.DstPort...)
-		if x.TokenGetter != nil {
-			t, err := x.TokenGetter.Get()
-			if err != nil {
-				return ErrorReply(r, c, err)
-			}
-			if len(t) == 0 {
-				return ErrorReply(r, c, errors.New("Miss Token"))
-			}
-			bb := make([]byte, 2)
-			binary.BigEndian.PutUint16(bb, uint16(len(t)))
-			t = append(bb, t...)
-			rawaddr = append(t, rawaddr...)
-		}
 		n, err = WriteTo(rc, rawaddr, k, n, true)
 		if err != nil {
 			return ErrorReply(r, c, err)
@@ -205,7 +198,7 @@ func (x *Client) TCPHandle(s *socks5.Server, c *net.TCPConn, r *socks5.Request) 
 	return socks5.ErrUnsupportCmd
 }
 
-// UDPHandle handles udp request
+// UDPHandle handles udp request.
 func (x *Client) UDPHandle(s *socks5.Server, addr *net.UDPAddr, d *socks5.Datagram) error {
 	if x.Socks5Middleman != nil {
 		if done, err := x.Socks5Middleman.UDPHandle(s, addr, d); err != nil || done {
@@ -214,19 +207,6 @@ func (x *Client) UDPHandle(s *socks5.Server, addr *net.UDPAddr, d *socks5.Datagr
 	}
 
 	send := func(ue *socks5.UDPExchange, data []byte) error {
-		if x.TokenGetter != nil {
-			t, err := x.TokenGetter.Get()
-			if err != nil {
-				return err
-			}
-			if len(t) == 0 {
-				return errors.New("Miss Token")
-			}
-			bb := make([]byte, 2)
-			binary.BigEndian.PutUint16(bb, uint16(len(t)))
-			t = append(bb, t...)
-			data = append(t, data...)
-		}
 		cd, err := Encrypt(x.Password, data)
 		if err != nil {
 			return err
@@ -247,6 +227,12 @@ func (x *Client) UDPHandle(s *socks5.Server, addr *net.UDPAddr, d *socks5.Datagr
 
 	c, err := Dial.Dial("udp", x.RemoteAddr)
 	if err != nil {
+		v, ok := s.TCPUDPAssociate.Get(addr.String())
+		if ok {
+			ch := v.(chan byte)
+			ch <- 0x00
+			s.TCPUDPAssociate.Delete(addr.String())
+		}
 		return err
 	}
 	rc := c.(*net.UDPConn)
@@ -255,6 +241,13 @@ func (x *Client) UDPHandle(s *socks5.Server, addr *net.UDPAddr, d *socks5.Datagr
 		RemoteConn: rc,
 	}
 	if err := send(ue, d.Bytes()[3:]); err != nil {
+		v, ok := s.TCPUDPAssociate.Get(ue.ClientAddr.String())
+		if ok {
+			ch := v.(chan byte)
+			ch <- 0x00
+			s.TCPUDPAssociate.Delete(ue.ClientAddr.String())
+		}
+		ue.RemoteConn.Close()
 		return err
 	}
 	s.UDPExchanges.Set(ue.ClientAddr.String(), ue, cache.DefaultExpiration)
@@ -263,7 +256,7 @@ func (x *Client) UDPHandle(s *socks5.Server, addr *net.UDPAddr, d *socks5.Datagr
 			v, ok := s.TCPUDPAssociate.Get(ue.ClientAddr.String())
 			if ok {
 				ch := v.(chan byte)
-				ch <- '0'
+				ch <- 0x00
 			}
 			s.UDPExchanges.Delete(ue.ClientAddr.String())
 			ue.RemoteConn.Close()
@@ -279,7 +272,7 @@ func (x *Client) UDPHandle(s *socks5.Server, addr *net.UDPAddr, d *socks5.Datagr
 			if err != nil {
 				break
 			}
-			_, _, _, data, err := Decrypt(x.Password, b[0:n], nil)
+			_, _, _, data, err := Decrypt(x.Password, b[0:n])
 			if err != nil {
 				log.Println(err)
 				break
@@ -298,7 +291,7 @@ func (x *Client) UDPHandle(s *socks5.Server, addr *net.UDPAddr, d *socks5.Datagr
 	return nil
 }
 
-// ListenAndServeHTTP will let client start a http proxy
+// ListenAndServeHTTP will let client start a http proxy.
 func (x *Client) ListenAndServeHTTP() error {
 	var err error
 	x.TCPListen, err = net.ListenTCP("tcp", x.Server.TCPAddr)
@@ -332,7 +325,7 @@ func (x *Client) ListenAndServeHTTP() error {
 	}
 }
 
-// HTTPHandle handle http request
+// HTTPHandle handles http request.
 func (x *Client) HTTPHandle(c *net.TCPConn) error {
 	b := make([]byte, 0, 1024)
 	for {
@@ -360,7 +353,7 @@ func (x *Client) HTTPHandle(c *net.TCPConn) error {
 	}
 	if method != "CONNECT" {
 		var err error
-		addr, err = ant.GetAddressFromURL(aoru)
+		addr, err = xx.GetAddressFromURL(aoru)
 		if err != nil {
 			return err
 		}
@@ -405,19 +398,6 @@ func (x *Client) HTTPHandle(c *net.TCPConn) error {
 	rawaddr = append(rawaddr, a)
 	rawaddr = append(rawaddr, h...)
 	rawaddr = append(rawaddr, p...)
-	if x.TokenGetter != nil {
-		t, err := x.TokenGetter.Get()
-		if err != nil {
-			return err
-		}
-		if len(t) == 0 {
-			return errors.New("Miss Token")
-		}
-		bb := make([]byte, 2)
-		binary.BigEndian.PutUint16(bb, uint16(len(t)))
-		t = append(bb, t...)
-		rawaddr = append(t, rawaddr...)
-	}
 	n, err = WriteTo(rc, rawaddr, k, n, true)
 	if err != nil {
 		return err
@@ -482,7 +462,7 @@ func (x *Client) HTTPHandle(c *net.TCPConn) error {
 	return nil
 }
 
-// Shutdown used to stop the client
+// Shutdown used to stop the client.
 func (x *Client) Shutdown() error {
 	return x.Server.Stop()
 }
