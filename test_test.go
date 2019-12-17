@@ -12,12 +12,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// +build !linux
-
 package brook
 
-import "errors"
+import (
+	"testing"
+)
 
-func RunTproxy(address, server, password string, tcpTimeout, tcpDeadline, udpDeadline int) error {
-	return errors.New("Only works on Linux")
+func TestTest(t *testing.T) {
 }
