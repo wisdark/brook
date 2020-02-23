@@ -32,7 +32,7 @@ type Tproxy struct {
 	Password      []byte
 	TCPListen     *net.TCPListener
 	UDPConn       *net.UDPConn
-	UDPExchanges  *cache.Cache
+	Cache         *cache.Cache
 	TCPDeadline   int
 	TCPTimeout    int
 	UDPDeadline   int
@@ -41,6 +41,14 @@ type Tproxy struct {
 // NewTproxy.
 func NewTproxy(addr, remote, password string, tcpTimeout, tcpDeadline, udpDeadline int) (*Tproxy, error) {
 	return nil, errors.New("Only support Linux")
+}
+
+func (s *Tproxy) RunAutoScripts() error {
+	return nil
+}
+
+func (s *Tproxy) ClearAutoScripts() error {
+	return nil
 }
 
 // Run server.
