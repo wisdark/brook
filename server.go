@@ -24,6 +24,7 @@ import (
 	cache "github.com/patrickmn/go-cache"
 	"github.com/txthinking/brook/limits"
 	"github.com/txthinking/brook/plugin"
+	"github.com/txthinking/runnergroup"
 	"github.com/txthinking/socks5"
 )
 
@@ -39,6 +40,7 @@ type Server struct {
 	TCPTimeout    int
 	UDPDeadline   int
 	ServerAuthman plugin.ServerAuthman
+	RunnerGroup   *runnergroup.RunnerGroup
 }
 
 // NewServer.
@@ -63,6 +65,7 @@ func NewServer(addr, password string, tcpTimeout, tcpDeadline, udpDeadline int) 
 		TCPTimeout:  tcpTimeout,
 		TCPDeadline: tcpDeadline,
 		UDPDeadline: udpDeadline,
+		RunnerGroup: runnergroup.New(),
 	}
 	return s, nil
 }
@@ -74,14 +77,29 @@ func (s *Server) SetServerAuthman(m plugin.ServerAuthman) {
 
 // Run server.
 func (s *Server) ListenAndServe() error {
-	errch := make(chan error)
-	go func() {
-		errch <- s.RunTCPServer()
-	}()
-	go func() {
-		errch <- s.RunUDPServer()
-	}()
-	return <-errch
+	s.RunnerGroup.Add(&runnergroup.Runner{
+		Start: func() error {
+			return s.RunTCPServer()
+		},
+		Stop: func() error {
+			if s.TCPListen != nil {
+				return s.TCPListen.Close()
+			}
+			return nil
+		},
+	})
+	s.RunnerGroup.Add(&runnergroup.Runner{
+		Start: func() error {
+			return s.RunUDPServer()
+		},
+		Stop: func() error {
+			if s.UDPConn != nil {
+				return s.UDPConn.Close()
+			}
+			return nil
+		},
+	})
+	return s.RunnerGroup.Wait()
 }
 
 // RunTCPServer starts tcp server.
@@ -174,9 +192,7 @@ func (s *Server) TCPHandle(c *net.TCPConn) error {
 		defer ai.Close()
 	}
 
-	if Debug {
-		log.Println("Dial TCP", address)
-	}
+	debug("dial tcp", address)
 	tmp, err := Dial.Dial("tcp", address)
 	if err != nil {
 		return err
@@ -302,9 +318,7 @@ func (s *Server) UDPHandle(addr *net.UDPAddr, b []byte) error {
 			return err
 		}
 	}
-	if Debug {
-		log.Println("Dial UDP", address)
-	}
+	debug("dial udp", address)
 	c, err := Dial.Dial("udp", address)
 	if err != nil {
 		return err
@@ -317,7 +331,9 @@ func (s *Server) UDPHandle(addr *net.UDPAddr, b []byte) error {
 	}
 	if err := send(ue, data); err != nil {
 		ue.RemoteConn.Close()
-		ue.Internet.Close()
+		if ue.Internet != nil {
+			ue.Internet.Close()
+		}
 		return err
 	}
 	s.Cache.Set(ue.ClientAddr.String(), ue, cache.DefaultExpiration)
@@ -325,7 +341,9 @@ func (s *Server) UDPHandle(addr *net.UDPAddr, b []byte) error {
 		defer func() {
 			s.Cache.Delete(ue.ClientAddr.String())
 			ue.RemoteConn.Close()
-			ue.Internet.Close()
+			if ue.Internet != nil {
+				ue.Internet.Close()
+			}
 		}()
 		var b [65535]byte
 		for {
@@ -370,15 +388,5 @@ func (s *Server) UDPHandle(addr *net.UDPAddr, b []byte) error {
 
 // Shutdown server.
 func (s *Server) Shutdown() error {
-	var err, err1 error
-	if s.TCPListen != nil {
-		err = s.TCPListen.Close()
-	}
-	if s.UDPConn != nil {
-		err1 = s.UDPConn.Close()
-	}
-	if err != nil {
-		return err
-	}
-	return err1
+	return s.RunnerGroup.Done()
 }

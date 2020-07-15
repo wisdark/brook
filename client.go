@@ -27,7 +27,6 @@ import (
 	"github.com/txthinking/brook/limits"
 	"github.com/txthinking/brook/plugin"
 	"github.com/txthinking/socks5"
-	xx "github.com/txthinking/x"
 )
 
 // Client.
@@ -84,7 +83,7 @@ func (x *Client) SetClientAuthman(m plugin.ClientAuthman) {
 
 // ListenAndServe will let client start a socks5 proxy.
 func (x *Client) ListenAndServe() error {
-	return x.Server.Run(x)
+	return x.Server.ListenAndServe(x)
 }
 
 // TCPHandle handles tcp request.
@@ -100,6 +99,7 @@ func (x *Client) TCPHandle(s *socks5.Server, c *net.TCPConn, r *socks5.Request) 
 	}
 
 	if r.Cmd == socks5.CmdConnect {
+		debug("dial tcp", r.Address())
 		tmp, err := Dial.Dial("tcp", x.RemoteAddr)
 		if err != nil {
 			return ErrorReply(r, c, err)
@@ -150,7 +150,7 @@ func (x *Client) TCPHandle(s *socks5.Server, c *net.TCPConn, r *socks5.Request) 
 			return ErrorReply(r, c, err)
 		}
 		rp := socks5.NewReply(socks5.RepSuccess, a, address, port)
-		if err := rp.WriteTo(c); err != nil {
+		if _, err := rp.WriteTo(c); err != nil {
 			return err
 		}
 
@@ -267,6 +267,7 @@ func (x *Client) UDPHandle(s *socks5.Server, addr *net.UDPAddr, d *socks5.Datagr
 		return send(ue, d.Bytes()[3:])
 	}
 
+	debug("dial udp", d.Address())
 	c, err := Dial.Dial("udp", x.RemoteAddr)
 	if err != nil {
 		v, ok := s.TCPUDPAssociate.Get(addr.String())
@@ -396,11 +397,12 @@ func (x *Client) HTTPHandle(c *net.TCPConn) error {
 	}
 	if method != "CONNECT" {
 		var err error
-		addr, err = xx.GetAddressFromURL(aoru)
+		addr, err = GetAddressFromURL(aoru)
 		if err != nil {
 			return err
 		}
 	}
+	debug("dial http", addr)
 
 	if x.HTTPMiddleman != nil {
 		done, err := x.HTTPMiddleman.Handle(method, addr, b, c)
@@ -522,5 +524,14 @@ func (x *Client) HTTPHandle(c *net.TCPConn) error {
 
 // Shutdown used to stop the client.
 func (x *Client) Shutdown() error {
-	return x.Server.Stop()
+	var e error
+	if x.TCPListen != nil {
+		if err := x.TCPListen.Close(); err != nil {
+			e = err
+		}
+	}
+	if err := x.Server.Shutdown(); err != nil {
+		e = err
+	}
+	return e
 }
