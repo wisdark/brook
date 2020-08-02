@@ -44,7 +44,8 @@ type Tproxy struct {
 	Password      []byte
 	TCPListen     *net.TCPListener
 	UDPConn       *net.UDPConn
-	Cache         *cache.Cache
+	UDPExchanges  *cache.Cache
+	UDPSrc        *cache.Cache
 	TCPDeadline   int
 	TCPTimeout    int
 	UDPDeadline   int
@@ -70,6 +71,7 @@ func NewTproxy(addr, remote, password string, tcpTimeout, tcpDeadline, udpDeadli
 		return nil, err
 	}
 	cs := cache.New(cache.NoExpiration, cache.NoExpiration)
+	cs2 := cache.New(cache.NoExpiration, cache.NoExpiration)
 	if err := limits.Raise(); err != nil {
 		log.Println("Try to raise system limits, got", err)
 	}
@@ -79,7 +81,8 @@ func NewTproxy(addr, remote, password string, tcpTimeout, tcpDeadline, udpDeadli
 		UDPAddr:       uaddr,
 		RemoteTCPAddr: rtaddr,
 		RemoteUDPAddr: ruaddr,
-		Cache:         cs,
+		UDPExchanges:  cs,
+		UDPSrc:        cs2,
 		TCPTimeout:    tcpTimeout,
 		TCPDeadline:   tcpDeadline,
 		UDPDeadline:   udpDeadline,
@@ -92,7 +95,7 @@ func (s *Tproxy) RunAutoScripts() error {
 	hc := &http.Client{
 		Timeout: 9 * time.Second,
 	}
-	r, err := hc.Get("https://txthinking.github.io/blackwhite/white_cidr.list")
+	r, err := hc.Get("https://txthinking.github.io/bypass/chinacidr4.list")
 	if err != nil {
 		return err
 	}
@@ -397,7 +400,9 @@ type TproxyUDPExchange struct {
 }
 
 func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
-	a, address, port, err := socks5.ParseAddress(daddr.String())
+	src := addr.String()
+	dst := daddr.String()
+	a, address, port, err := socks5.ParseAddress(dst)
 	if err != nil {
 		return err
 	}
@@ -420,19 +425,41 @@ func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
 	}
 
 	var ue *TproxyUDPExchange
-	iue, ok := s.Cache.Get(addr.String())
+	iue, ok := s.UDPExchanges.Get(src + dst)
 	if ok {
 		ue = iue.(*TproxyUDPExchange)
 		return send(ue, b)
 	}
 
-	rc, err := tproxy.DialUDP("udp", &net.UDPAddr{
-		IP:   net.IPv4zero,
-		Port: 0,
-	}, s.RemoteUDPAddr)
+	var laddr *net.UDPAddr
+	any, ok := s.UDPSrc.Get(src + dst)
+	if ok {
+		laddr = any.(*net.UDPAddr)
+	}
+	if laddr == nil {
+		if addr.IP.To4() == nil {
+			laddr = &net.UDPAddr{
+				IP:   net.IPv4zero,
+				Port: 0,
+				Zone: addr.Zone,
+			}
+		}
+		if addr.IP.To4() != nil {
+			laddr = &net.UDPAddr{
+				IP:   net.IPv6zero,
+				Port: 0,
+				Zone: addr.Zone,
+			}
+		}
+	}
+	rc, err := Dial.DialUDP("udp", laddr, s.RemoteUDPAddr)
 	if err != nil {
 		return err
 	}
+	if !ok {
+		s.UDPSrc.Set(src+dst, rc.LocalAddr().(*net.UDPAddr), -1)
+	}
+
 	c, err := tproxy.DialUDP("udp", daddr, addr)
 	if err != nil {
 		rc.Close()
@@ -447,10 +474,10 @@ func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
 		ue.LocalConn.Close()
 		return err
 	}
-	s.Cache.Set(ue.LocalConn.RemoteAddr().String(), ue, cache.DefaultExpiration)
-	go func(ue *TproxyUDPExchange) {
+	s.UDPExchanges.Set(src+dst, ue, -1)
+	go func(ue *TproxyUDPExchange, dst string) {
 		defer func() {
-			s.Cache.Delete(ue.LocalConn.RemoteAddr().String())
+			s.UDPExchanges.Delete(ue.LocalConn.RemoteAddr().String() + dst)
 			ue.RemoteConn.Close()
 			ue.LocalConn.Close()
 		}()
@@ -473,6 +500,6 @@ func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
 				break
 			}
 		}
-	}(ue)
+	}(ue, dst)
 	return nil
 }
