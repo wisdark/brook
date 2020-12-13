@@ -12,22 +12,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-package plugin
+package brook
 
-// ClientAuthman is used to provide extra authentication mechanism.
-type ClientAuthman interface {
-	// GetToken is used for client to prepare token.
-	GetToken() ([]byte, error)
-}
+import "encoding/binary"
 
-// ServerAuthman is used to provide extra authentication mechanism
-type ServerAuthman interface {
-	// VerifyToken is used for server to verify token.
-	VerifyToken(token []byte, network string, a byte, dst string, b []byte) (Internet, error)
-}
-
-type Internet interface {
-	TCPEgress(int) error
-	UDPEgress(int) error
-	Close() error
+func NextNonce(b []byte) {
+	i := binary.LittleEndian.Uint64(b[:8])
+	i += 1
+	binary.LittleEndian.PutUint64(b[:8], i)
 }

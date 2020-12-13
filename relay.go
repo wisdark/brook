@@ -17,6 +17,7 @@ package brook
 import (
 	"log"
 	"net"
+	"strings"
 	"time"
 
 	cache "github.com/patrickmn/go-cache"
@@ -34,15 +35,14 @@ type Relay struct {
 	TCPListen     *net.TCPListener
 	UDPConn       *net.UDPConn
 	UDPExchanges  *cache.Cache
-	TCPDeadline   int
 	TCPTimeout    int
-	UDPDeadline   int
+	UDPTimeout    int
 	RunnerGroup   *runnergroup.RunnerGroup
 	UDPSrc        *cache.Cache
 }
 
 // NewRelay returns a Relay.
-func NewRelay(addr, remote string, tcpTimeout, tcpDeadline, udpDeadline int) (*Relay, error) {
+func NewRelay(addr, remote string, tcpTimeout, udpTimeout int) (*Relay, error) {
 	taddr, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
 		return nil, err
@@ -71,8 +71,7 @@ func NewRelay(addr, remote string, tcpTimeout, tcpDeadline, udpDeadline int) (*R
 		RemoteUDPAddr: ruaddr,
 		UDPExchanges:  cs,
 		TCPTimeout:    tcpTimeout,
-		TCPDeadline:   tcpDeadline,
-		UDPDeadline:   udpDeadline,
+		UDPTimeout:    udpTimeout,
 		RunnerGroup:   runnergroup.New(),
 		UDPSrc:        cs2,
 	}
@@ -122,13 +121,7 @@ func (s *Relay) RunTCPServer() error {
 		go func(c *net.TCPConn) {
 			defer c.Close()
 			if s.TCPTimeout != 0 {
-				if err := c.SetKeepAlivePeriod(time.Duration(s.TCPTimeout) * time.Second); err != nil {
-					log.Println(err)
-					return
-				}
-			}
-			if s.TCPDeadline != 0 {
-				if err := c.SetDeadline(time.Now().Add(time.Duration(s.TCPDeadline) * time.Second)); err != nil {
+				if err := c.SetDeadline(time.Now().Add(time.Duration(s.TCPTimeout) * time.Second)); err != nil {
 					log.Println(err)
 					return
 				}
@@ -150,7 +143,7 @@ func (s *Relay) RunUDPServer() error {
 	}
 	defer s.UDPConn.Close()
 	for {
-		b := make([]byte, 65535)
+		b := make([]byte, 65507)
 		n, addr, err := s.UDPConn.ReadFromUDP(b)
 		if err != nil {
 			return err
@@ -179,12 +172,7 @@ func (s *Relay) TCPHandle(c *net.TCPConn) error {
 	rc := tmp.(*net.TCPConn)
 	defer rc.Close()
 	if s.TCPTimeout != 0 {
-		if err := rc.SetKeepAlivePeriod(time.Duration(s.TCPTimeout) * time.Second); err != nil {
-			return err
-		}
-	}
-	if s.TCPDeadline != 0 {
-		if err := rc.SetDeadline(time.Now().Add(time.Duration(s.TCPDeadline) * time.Second)); err != nil {
+		if err := rc.SetDeadline(time.Now().Add(time.Duration(s.TCPTimeout) * time.Second)); err != nil {
 			return err
 		}
 	}
@@ -192,8 +180,8 @@ func (s *Relay) TCPHandle(c *net.TCPConn) error {
 	go func() {
 		var bf [1024 * 2]byte
 		for {
-			if s.TCPDeadline != 0 {
-				if err := rc.SetDeadline(time.Now().Add(time.Duration(s.TCPDeadline) * time.Second)); err != nil {
+			if s.TCPTimeout != 0 {
+				if err := rc.SetDeadline(time.Now().Add(time.Duration(s.TCPTimeout) * time.Second)); err != nil {
 					return
 				}
 			}
@@ -208,8 +196,8 @@ func (s *Relay) TCPHandle(c *net.TCPConn) error {
 	}()
 	var bf [1024 * 2]byte
 	for {
-		if s.TCPDeadline != 0 {
-			if err := c.SetDeadline(time.Now().Add(time.Duration(s.TCPDeadline) * time.Second)); err != nil {
+		if s.TCPTimeout != 0 {
+			if err := c.SetDeadline(time.Now().Add(time.Duration(s.TCPTimeout) * time.Second)); err != nil {
 				return nil
 			}
 		}
@@ -250,6 +238,10 @@ func (s *Relay) UDPHandle(addr *net.UDPAddr, b []byte) error {
 	}
 	rc, err := Dial.DialUDP("udp", laddr, s.RemoteUDPAddr)
 	if err != nil {
+		if strings.Contains(err.Error(), "address already in use") {
+			// we dont choose lock, so ignore this error
+			return nil
+		}
 		return err
 	}
 	if laddr == nil {
@@ -266,13 +258,13 @@ func (s *Relay) UDPHandle(addr *net.UDPAddr, b []byte) error {
 	s.UDPExchanges.Set(src+dst, ue, -1)
 	go func(ue *socks5.UDPExchange, dst string) {
 		defer func() {
-			s.UDPExchanges.Delete(ue.ClientAddr.String() + dst)
 			ue.RemoteConn.Close()
+			s.UDPExchanges.Delete(ue.ClientAddr.String() + dst)
 		}()
-		var b [65535]byte
+		var b [65507]byte
 		for {
-			if s.UDPDeadline != 0 {
-				if err := ue.RemoteConn.SetDeadline(time.Now().Add(time.Duration(s.UDPDeadline) * time.Second)); err != nil {
+			if s.UDPTimeout != 0 {
+				if err := ue.RemoteConn.SetDeadline(time.Now().Add(time.Duration(s.UDPTimeout) * time.Second)); err != nil {
 					log.Println(err)
 					break
 				}
