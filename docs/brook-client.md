@@ -9,14 +9,13 @@ send request <--> local socks5 <-- | brook server protocol | --> brook server <-
 ## Run brook client
 
 ```
-$ brook client -s 1.2.3.4:9999 -p hello --socks5 127.0.0.1:1080
+$ brook client --server 1.2.3.4:9999 --password hello --socks5 127.0.0.1:1080
 ```
 
 > More parameters: $ brook client -h
 
-## Use the socks5 proxy created by brook client
+## Use the socks5 proxy
 
-> TODO: Please help improve the documentation here
+Once brook is listening as a SOCKS5 proxy on `127.0.0.1` port `1080`, you need to configure your browser to use the SOCKS5 proxy.
 
-* Configure it on your system network settings
-* Configure it on your browser
+* In Chrome, install and configure extension [Socks5 Configurator](https://chrome.google.com/webstore/detail/hnpgnjkeaobghpjjhaiemlahikgmnghb)

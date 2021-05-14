@@ -2,29 +2,42 @@ GUI(图形用户界面), Brook 图形客户端.
 
 ## macOS
 
-[Brook macOS 图形客户端](https://github.com/txthinking/brook/releases/download/v20200909/Brook.dmg)
+[Brook.dmg](https://github.com/txthinking/brook/releases/latest/download/Brook.dmg)
 
-最好保持你的系统为最新版
+or
+
+```
+$ brew install --cask brook
+```
+
+[BrookLite.dmg](https://github.com/txthinking/brook/releases/latest/download/BrookLite.dmg)
+
+or
+
+```
+$ brew install --cask brooklite
+```
 
 ## Windows
 
-[Brook Windows 图形客户端](https://github.com/txthinking/brook/releases/download/v20200909/Brook.exe)
+[Brook.exe](https://github.com/txthinking/brook/releases/latest/download/Brook.exe)
 
-最好保持你的系统为最新版
+[BrookLite.exe](https://github.com/txthinking/brook/releases/latest/download/BrookLite.exe)
 
 ## Android
 
-[Brook Android 图形客户端](https://github.com/txthinking/brook/releases/download/v20200909/Brook.apk)
-
-最好保持你的系统为最新版
+[Brook.apk](https://github.com/txthinking/brook/releases/latest/download/Brook.apk)
 
 ## iOS
 
-[Brook iOS 图形客户端](https://apps.apple.com/us/app/brook-a-cross-platform-proxy/id1216002642)
+[Brook on App Store](https://apps.apple.com/us/app/brook-a-cross-platform-proxy/id1216002642)
 
-最好保持你的系统为最新版. 因为不可抗因素, 请使用非中国大陆Apple ID下载.
+请使用非中国大陆 Apple ID 下载.
+
+## OpenWrt
+
+[brook_linux_xxx.ipk](/zh-cn/brook-tproxy-gui)
 
 ---
 
 以上下载链接你也能在[releases](https://github.com/txthinking/brook/releases)页面找到
-

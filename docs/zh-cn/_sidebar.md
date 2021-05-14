@@ -1,67 +1,79 @@
-* 安装
+-   安装
 
-    * [安装 CLI](README.md)
-    * [安装图形客户端](install-gui-client.md)
+    -   [CLI 和 GUI](README.md)
+    -   [[CLI] 安装 Brook CLI](install-cli.md)
+    -   [[GUI] 安装 Brook GUI 图形客户端](install-gui-client.md)
 
-* 服务端和客户端
+-   brook server & brook client
 
-    * [$ brook server](brook-server.md)
-    * [用joker守护进程](joker.md)
-    * [$ brook client](brook-client.md)
-    * [图形客户端](brook-client-gui.md)
+    -   [[CLI] \$ brook server](brook-server.md)
+    -   [[CLI] \$ brook client](brook-client.md)
+    -   [[GUI] 图形客户端](brook-client-gui.md)
 
-* WS服务端和WS客户端
+-   brook wsserver & brook wsclient
 
-    * [$ brook wsserver](brook-wsserver.md)
-    * [$ brook wsclient](brook-wsclient.md)
-    * [图形客户端](brook-wsclient-gui.md)
+    -   [[CLI] \$ brook wsserver](brook-wsserver.md)
+    -   [[CLI] \$ brook wsclient](brook-wsclient.md)
+    -   [[GUI] 图形客户端](brook-wsclient-gui.md)
 
-* 服务端和 Map
+-   brook wssserver & brook wssclient
 
-    * [$ brook map](brook-map.md)
+    -   [[CLI] \$ brook wssserver](brook-wssserver.md)
+    -   [[CLI] \$ brook wssclient](brook-wssclient.md)
+    -   [[GUI] 图形客户端](brook-wssclient-gui.md)
 
-* 服务端和 DNS Server
+-   brook server & brook map
 
-    * [$ brook dns](brook-dns.md)
+    -   [[CLI] \$ brook map](brook-map.md)
 
-* 服务端和透明代理
+-   brook server & brook dns
 
-    * [$ brook tproxy](brook-tproxy.md)
+    -   [[CLI] \$ brook dns](brook-dns.md)
 
-* 中继
+-   brook server & brook tproxy
 
-    * [$ brook relay](brook-relay.md)
+    -   [[CLI] \$ brook tproxy](brook-tproxy.md)
+    -   [[GUI] OpenWrt](brook-tproxy-gui.md)
 
-* Socks5
+-   brook relay
 
-    * [$ brook socks5](brook-socks5.md)
+    -   [[CLI] \$ brook relay](brook-relay.md)
 
-* Socks5 转 HTTP 代理
+-   brook socks5
 
-    * [$ brook socks5tohttp](brook-socks5tohttp.md)
+    -   [[CLI] \$ brook socks5](brook-socks5.md)
+    -   [[GUI] 图形客户端](socks5-client-gui.md)
 
-* Socks5 和魔法DNS
+-   brook socks5tohttp
 
-    * [$ brook hijackhttps](brook-hijackhttps.md)
+    -   [[CLI] \$ brook socks5tohttp](brook-socks5tohttp.md)
 
-* Brook 链接
+-   brook hijackhttps
 
-    * [Brook Link](brook-link.md)
+    -   [[CLI] \$ brook hijackhttps](brook-hijackhttps.md)
 
-* PAC
+-   brook link & brook qr
 
-    * [$ brook pac](brook-pac.md)
+    -   [[CLI] \$ brook link](brook-link.md)
 
-* IPv6
+-   brook pac
 
-    * [IPv6](ipv6.md)
+    -   [[CLI] \$ brook pac](brook-pac.md)
 
-* 资源
+-   IPv6
 
-    * [视频教程](video.md)
-    * [相关资源](resources.md)
+    -   [IPv6](ipv6.md)
 
-* 协议
+-   资源
 
-    * [brook server](brook-server-spec.md)
-    * [brook wsserver](brook-wsserver-spec.md)
+    -   [Bypass 規則](bypass.md)
+    -   [一键脚本](installscript.md)
+    -   [博客和视频](blogvideo.md)
+    -   [论坛](community.md)
+    -   [Telegram](telegram.md)
+
+-   协议
+
+    -   [brook server](brook-server-protocol.md)
+    -   [brook wsserver](brook-wsserver-protocol.md)
+    -   [brook wssserver](brook-wssserver-protocol.md)

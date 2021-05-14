@@ -1,6 +1,6 @@
 ## $ brook map
 
-$ brook map 可以映射任何TCP和UDP server, 让其走brook server协议. 它与 brook server 一起工作.
+$ brook map 可以映射任何TCP和UDP server, 让其走brook server协议. 它与 $ brook server 一起工作.
 
 ```
 请求 <--> 映射出来的地址 <-- | brook server 协议 | --> brook server <--> 被映射的server
@@ -11,7 +11,7 @@ $ brook map 可以映射任何TCP和UDP server, 让其走brook server协议. 它
 ## 运行 brook map
 
 ```
-$ brook map -s 1.2.3.4:9999 -p hello -f 127.0.0.1:5353 -t 8.8.8.8:53
+$ brook map --server 1.2.3.4:9999 --password hello --from 127.0.0.1:5353 --to 8.8.8.8:53
 ```
 
 > 更多参数: $ brook map -h

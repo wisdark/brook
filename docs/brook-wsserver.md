@@ -1,26 +1,75 @@
 ## Run brook wsserver
 
-Assume with port `9999` and password `hello`
+Assume the port is `9999` and the password is `hello`. If there is a firewall, remember to allow the TCP port.
 
 ```
-$ brook wsserver -l :9999 -p hello
+$ brook wsserver --listen :9999 --password hello
 ```
 
-Assume your server public IP is `1.2.3.4`, then your brook wsserver is: `ws://1.2.3.4:9999`
+Assuming your server public IP is `1.2.3.4`, your brook wsserver is `ws://1.2.3.4:9999`
 
-> More parameters: $ brook wsserver -h
+> More parameters: \$ brook wsserver -h
 
-## Run brook wsserver with domain
+---
 
-Make sure your domain name has been successfully resolved, 80 and 443 are open, brook will automatically issue certificate for you, assume your domain is `domain.com`
+## Run in the background via `nohup`
+
+> We recommend running the command directly to make sure there are no errors before running it via nohup
 
 ```
-$ brook wsserver --domain domain.com -p hello
+$ nohup brook wsserver --listen :9999 --password hello &
 ```
 
-Then your brook wsserver is: `wss://domain.com:443`
+Stop background brook
 
-## Run in background or daemon
+```
+$ killall brook
+```
 
-* Reference [Background](brook-server.md)
-* Reference [Daemon](joker.md)
+---
+
+## Run as daemon via [`joker`](https://github.com/txthinking/joker) 🔥
+
+> We recommend running the command directly to make sure there are no errors before running it with joker
+
+```
+$ joker brook wsserver --listen :9999 --password hello
+```
+
+View running commmands via joker
+
+```
+$ joker list
+```
+
+Stop a running command via joker
+
+> Your can get ID from output by \$ joker list
+
+```
+$ joker stop <ID>
+```
+
+View log of a command run via joker
+
+> Your can get ID from output by \$ joker list
+
+```
+$ joker log <ID>
+```
+
+---
+
+## Auto start at boot via [`jinbe`](https://github.com/txthinking/jinbe)
+
+> We recommend running the command directly to make sure there are no errors before running it via jinbe
+
+```
+$ jinbe brook wsserver --listen :9999 --password hello
+```
+
+Or with joker
+
+```
+$ jinbe joker brook wsserver --listen :9999 --password hello
+```

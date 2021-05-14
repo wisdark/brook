@@ -1,67 +1,79 @@
-* Install
+-   Install
 
-    * [Install CLI](README.md)
-    * [Install GUI Client](install-gui-client.md)
+    -   [CLI and GUI](README.md)
+    -   [[CLI] Install CLI](install-cli.md)
+    -   [[GUI] Install GUI Client](install-gui-client.md)
 
-* Server and Client
+-   brook server & brook client
 
-    * [$ brook server](brook-server.md)
-    * [Daemon with joker](joker.md)
-    * [$ brook client](brook-client.md)
-    * [GUI Client](brook-client-gui.md)
+    -   [[CLI] \$ brook server](brook-server.md)
+    -   [[CLI] \$ brook client](brook-client.md)
+    -   [[GUI] Client](brook-client-gui.md)
 
-* WSServer and WSClient
+-   brook wsserver & brook wsclient
 
-    * [$ brook wsserver](brook-wsserver.md)
-    * [$ brook wsclient](brook-wsclient.md)
-    * [GUI WSClient](brook-wsclient-gui.md)
+    -   [[CLI] \$ brook wsserver](brook-wsserver.md)
+    -   [[CLI] \$ brook wsclient](brook-wsclient.md)
+    -   [[GUI] Client](brook-wsclient-gui.md)
 
-* Server and Map
+-   brook wssserver & brook wssclient
 
-    * [$ brook map](brook-map.md)
+    -   [[CLI] \$ brook wssserver](brook-wssserver.md)
+    -   [[CLI] \$ brook wssclient](brook-wssclient.md)
+    -   [[GUI] Client](brook-wssclient-gui.md)
 
-* Server and DNS
+-   brook server & brook map
 
-    * [$ brook dns](brook-dns.md)
+    -   [[CLI] \$ brook map](brook-map.md)
 
-* Server and Transparent Proxy
+-   brook server & brook dns
 
-    * [$ brook tproxy](brook-tproxy.md)
+    -   [[CLI] \$ brook dns](brook-dns.md)
 
-* Relay
+-   brook server & brook tproxy
 
-    * [$ brook relay](brook-relay.md)
+    -   [[CLI] \$ brook tproxy](brook-tproxy.md)
+    -   [[GUI] OpenWrt](brook-tproxy-gui.md)
 
-* Socks5
+-   brook relay
 
-    * [$ brook socks5](brook-socks5.md)
+    -   [[CLI] \$ brook relay](brook-relay.md)
 
-* Socks5 to HTTP
+-   brook socks5
 
-    * [$ brook socks5tohttp](brook-socks5tohttp.md)
+    -   [[CLI] \$ brook socks5](brook-socks5.md)
+    -   [[GUI] Client](socks5-client-gui.md)
 
-* Socks5 and Hijack HTTPS magic DNS
+-   brook socks5tohttp
 
-    * [$ brook hijackhttps](brook-hijackhttps.md)
+    -   [[CLI] \$ brook socks5tohttp](brook-socks5tohttp.md)
 
-* Brook Link
+-   brook hijackhttps
 
-    * [Brook Link](brook-link.md)
+    -   [[CLI] \$ brook hijackhttps](brook-hijackhttps.md)
 
-* PAC
+-   brook link & brook qr
 
-    * [$ brook pac](brook-pac.md)
+    -   [[CLI] \$ brook link](brook-link.md)
 
-* IPv6
+-   brook pac
 
-    * [IPv6](ipv6.md)
+    -   [[CLI] \$ brook pac](brook-pac.md)
 
-* Resources
+-   IPv6
 
-    * [Video](video.md)
-    * [Resources](resources.md)
+    -   [IPv6](ipv6.md)
 
-* Spec
+-   Resources
 
-    * [brook server](brook-server-spec.md)
-    * [brook wsserver](brook-wsserver-spec.md)
+    -   [Bypass Rule](bypass.md)
+    -   [Install script](installscript.md)
+    -   [Blog and Video](blogvideo.md)
+    -   [Community](community.md)
+    -   [Telegram](telegram.md)
+
+-   Protocol
+
+    -   [brook server](brook-server-protocol.md)
+    -   [brook wsserver](brook-wsserver-protocol.md)
+    -   [brook wssserver](brook-wssserver-protocol.md)

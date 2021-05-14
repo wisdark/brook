@@ -9,13 +9,11 @@
 ## 运行 brook client
 
 ```
-$ brook client -s 1.2.3.4:9999 -p hello --socks5 127.0.0.1:1080
+$ brook client --server 1.2.3.4:9999 --password hello --socks5 127.0.0.1:1080
 ```
 
 > 更多参数: $ brook client -h
 
 ## 使用刚才创建的socks5代理
 
-> TODO: 请帮助完善此文档
-
-* 手动配置系统代理
+* 安裝並配置Chrome擴展[Socks5 Configurator](https://chrome.google.com/webstore/detail/hnpgnjkeaobghpjjhaiemlahikgmnghb)
