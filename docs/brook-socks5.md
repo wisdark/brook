@@ -2,10 +2,21 @@
 
 brook socks5 run a standalone standard socks5 server, both TCP and UDP, assume your server public IP is `1.2.3.4` and you want to run a socks5 server `1.2.3.4:1080`. If there is a firewall, remember to allow TCP and UDP on this port.
 
+```
+SRC --TCP--> brook socks5 --TCP--> DST
+SRC --UDP--> brook socks5 --UDP--> DST
+```
+
 ## Run brook socks5
 
 ```
-brook socks5 --socks5 1.2.3.4:1080
+brook socks5 --listen :1080 --socks5ServerIP 1.2.3.4
+```
+
+or with username and password
+
+```
+brook socks5 --listen :1080 --socks5ServerIP 1.2.3.4 --username hello --password world
 ```
 
 > More parameters: brook socks5 -h

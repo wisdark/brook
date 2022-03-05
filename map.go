@@ -207,7 +207,13 @@ func (s *Map) TCPHandle(c *net.TCPConn) error {
 	dst = append(dst, a)
 	dst = append(dst, h...)
 	dst = append(dst, p...)
-	sc, err := NewStreamClient("tcp", s.Password, dst, rc, s.TCPTimeout)
+	var sc Exchanger
+	if s.WSClient == nil || !s.WSClient.WithoutBrook {
+		sc, err = NewStreamClient("tcp", s.Password, dst, rc, s.TCPTimeout)
+	}
+	if s.WSClient != nil && s.WSClient.WithoutBrook {
+		sc, err = NewSimpleStreamClient("tcp", s.WSClient.PasswordSha256, dst, rc, s.TCPTimeout)
+	}
 	if err != nil {
 		return err
 	}
@@ -228,7 +234,9 @@ func (s *Map) UDPHandle(addr *net.UDPAddr, b []byte) error {
 			ue := any.(*UDPExchange)
 			return ue.Any.(*PacketClient).LocalToServer(ue.Dst, b, ue.Conn, s.UDPTimeout)
 		}
-		debug("dial udp", dst)
+		if Debug {
+			log.Println("dial udp", dst)
+		}
 		var laddr *net.UDPAddr
 		any, ok = s.UDPSrc.Get(src + dst)
 		if ok {
@@ -236,13 +244,14 @@ func (s *Map) UDPHandle(addr *net.UDPAddr, b []byte) error {
 		}
 		rc, err := Dial.DialUDP("udp", laddr, s.ServerUDPAddr)
 		if err != nil {
-			if strings.Contains(err.Error(), "address already in use") {
-				// we dont choose lock, so ignore this error
-				return nil
-			}
 			return err
 		}
 		defer rc.Close()
+		if s.UDPTimeout != 0 {
+			if err := rc.SetDeadline(time.Now().Add(time.Duration(s.UDPTimeout) * time.Second)); err != nil {
+				return err
+			}
+		}
 		if laddr == nil {
 			s.UDPSrc.Set(src+dst, rc.LocalAddr().(*net.UDPAddr), -1)
 		}
@@ -279,7 +288,9 @@ func (s *Map) UDPHandle(addr *net.UDPAddr, b []byte) error {
 		ue := any.(*UDPExchange)
 		return ue.Any.(func(b []byte) error)(b)
 	}
-	debug("dial udp", dst)
+	if Debug {
+		log.Println("dial udp", dst)
+	}
 	var laddr *net.UDPAddr
 	any, ok = s.UDPSrc.Get(src + dst)
 	if ok {
@@ -291,10 +302,6 @@ func (s *Map) UDPHandle(addr *net.UDPAddr, b []byte) error {
 	}
 	rc, err := s.WSClient.DialWebsocket(la)
 	if err != nil {
-		if strings.Contains(err.Error(), "address already in use") {
-			// we dont choose lock, so ignore this error
-			return nil
-		}
 		return err
 	}
 	defer rc.Close()
@@ -320,7 +327,13 @@ func (s *Map) UDPHandle(addr *net.UDPAddr, b []byte) error {
 	dstb = append(dstb, a)
 	dstb = append(dstb, h...)
 	dstb = append(dstb, p...)
-	sc, err := NewStreamClient("udp", s.Password, dstb, rc, s.UDPTimeout)
+	var sc Exchanger
+	if !s.WSClient.WithoutBrook {
+		sc, err = NewStreamClient("udp", s.Password, dstb, rc, s.UDPTimeout)
+	}
+	if s.WSClient.WithoutBrook {
+		sc, err = NewSimpleStreamClient("udp", s.WSClient.PasswordSha256, dstb, rc, s.UDPTimeout)
+	}
 	if err != nil {
 		return err
 	}

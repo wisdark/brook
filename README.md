@@ -4,19 +4,17 @@
 
 [![Build Status](https://travis-ci.org/txthinking/brook.svg?branch=master)](https://travis-ci.org/txthinking/brook)
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](http://www.gnu.org/licenses/gpl-3.0)
-[![Donate](https://img.shields.io/badge/Support-Donate-ff69b4.svg)](https://github.com/sponsors/txthinking)
 
-| 🌚 | 🌝 |
-| --- | --- |
-| MUST READ | https://txthinking.github.io/brook/#/README |
-| Install CLI | https://txthinking.github.io/brook/#/install-cli |
-| Install GUI (macOS, Windows, iOS, Android, OpenWrt) | https://txthinking.github.io/brook/#/install-gui-client |
-| OpenWrt CLI | https://txthinking.github.io/brook/#/brook-tproxy |
-| 📹 | ✍️ |
-| Blog | https://talks.txthinking.com |
-| Youtube | https://www.youtube.com/txthinking |
-| Discussions | https://github.com/txthinking/brook/discussions |
-| Telegram Channel | https://t.me/brookchannel |
+[📜 Document](https://txthinking.github.io/brook/)
+[🤝 Telegram](https://t.me/brookgroup)
+[🗣 News](https://t.me/txthinking_news)
+[💬 Chat](https://join.txthinking.com)
+[🩸 Youtube](https://www.youtube.com/txthinking)
+[❤️ Sponsor](https://github.com/sponsors/txthinking)
+
+---
+
+🎉 v20220404 [Changelog->](https://github.com/txthinking/brook/releases/tag/v20220404)
 
 ---
 
@@ -29,25 +27,38 @@ Brook's goal is to keep it **simple**, **stupid** and **not detectable**.
 
 ### Install CLI
 
+1. install nami
+
+    > [nami](https://github.com/txthinking/nami) will automatically download the command corresponding to your system<br/>
+    > If your system is not Linux, MacOS, Windows, you can download it directly on the [release](https://github.com/txthinking/brook/releases) page
+
+    ```
+    bash <(curl https://bash.ooo/nami.sh)
+    ```
+
+2. install brook, joker
+
+    > [joker](https://github.com/txthinking/joker) can turn process into daemon
+
+    ```
+    nami install brook joker
+    ```
+
+3. run `brook server`
+
+    ```
+    joker brook server --listen :9999 --password hello
+    ```
+
+> Then, your `brook server` is `YOUR_SERVER_IP:9999`, password is `hello`
+
+To learn more please read the [documentation](https://txthinking.github.io/brook/#/install-cli)
+
+### Install via brook.sh
+
 ```
-curl -L https://github.com/txthinking/brook/releases/latest/download/brook_linux_amd64 -o /usr/bin/brook
-chmod +x /usr/bin/brook
+bash <(curl https://bash.ooo/brook.sh)
 ```
-
-### [Recommend] Install CLI via [nami](https://github.com/txthinking/nami), run `brook wsserver` with [joker](https://github.com/txthinking/joker)
-
-> 😘 Just copy and paste these four lines of commands, you can call this **💛one-click script💛**
-
-```
-curl -L https://git.io/getnami | bash && sleep 3 && exec -l $SHELL
-nami install github.com/txthinking/joker
-nami install github.com/txthinking/brook
-joker brook wsserver --listen :9999 --password hello
-```
-
-> Then, your `brook wsserver` is `ws://YOUR_SERVER_IP:9999`, password is `hello`
-
-[Read Document](https://txthinking.github.io/brook/#/install-cli)
 
 ### Install GUI
 
@@ -61,9 +72,6 @@ NAME:
 
 USAGE:
    brook [global options] command [command options] [arguments...]
-
-VERSION:
-   20210701
 
 AUTHOR:
    Cloud <cloud@txthinking.com>
@@ -79,7 +87,6 @@ COMMANDS:
    dns             Run as dns server over brook, both TCP and UDP, [src <-> brook dns <-> brook server/wsserver/wssserver <-> dns] or [src <-> brook dns <-> dnsForBypass]
    tproxy          Run as transparent proxy, both TCP and UDP, only works on Linux, [src <-> brook tproxy <-> brook server/wsserver/wssserver <-> dst]
    link            Print brook link
-   qr              Print brook server QR code
    connect         Connect via standard sharing link (brook server & brook wsserver & brook wssserver)
    relay           Run as standalone relay, both TCP and UDP, this means access [from address] is equal to access [to address], [src <-> from address <-> to address]
    socks5          Run as standalone standard socks5 server, both TCP and UDP
@@ -103,10 +110,6 @@ COPYRIGHT:
 ```
 
 [Read Document](https://txthinking.github.io/brook/)
-
-## Contributing
-
-Please read [CONTRIBUTING.md](https://github.com/txthinking/brook/blob/master/.github/CONTRIBUTING.md) first
 
 ## License
 
