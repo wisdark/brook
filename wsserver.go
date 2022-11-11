@@ -22,6 +22,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -49,6 +50,7 @@ type WSServer struct {
 	BlockDomain    map[string]byte
 	BlockCIDR4     []*net.IPNet
 	BlockCIDR6     []*net.IPNet
+	BlockGeoIP     []string
 	BlockCache     *cache.Cache
 	BlockLock      *sync.RWMutex
 	Done           chan byte
@@ -61,7 +63,7 @@ type WSServer struct {
 }
 
 // NewWSServer.
-func NewWSServer(addr, password, domain, path string, tcpTimeout, udpTimeout int, blockDomainList, blockCIDR4List, blockCIDR6List string, updateListInterval int64) (*WSServer, error) {
+func NewWSServer(addr, password, domain, path string, tcpTimeout, udpTimeout int, blockDomainList, blockCIDR4List, blockCIDR6List string, updateListInterval int64, blockGeoIP []string) (*WSServer, error) {
 	var taddr *net.TCPAddr
 	var err error
 	if domain == "" {
@@ -116,6 +118,7 @@ func NewWSServer(addr, password, domain, path string, tcpTimeout, udpTimeout int
 		BlockDomain:    ds,
 		BlockCIDR4:     c4,
 		BlockCIDR6:     c6,
+		BlockGeoIP:     blockGeoIP,
 		BlockCache:     cs3,
 		BlockLock:      lock,
 		Done:           done,
@@ -286,7 +289,7 @@ func (s *WSServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *WSServer) TCPHandle(ss Exchanger, dst []byte) error {
 	address := socks5.ToAddress(dst[0], dst[1:len(dst)-2], dst[len(dst)-2:])
 	if Debug {
-		log.Println("dial tcp", address)
+		log.Println("TCP", address)
 	}
 	var ds map[string]byte
 	var c4 []*net.IPNet
@@ -300,7 +303,7 @@ func (s *WSServer) TCPHandle(ss Exchanger, dst []byte) error {
 	if s.BlockLock != nil {
 		s.BlockLock.RUnlock()
 	}
-	if BlockAddress(address, ds, c4, c6, s.BlockCache) {
+	if BlockAddress(address, ds, c4, c6, s.BlockCache, s.BlockGeoIP) {
 		return errors.New("block " + address)
 	}
 	var rc net.Conn
@@ -330,7 +333,7 @@ func (s *WSServer) TCPHandle(ss Exchanger, dst []byte) error {
 func (s *WSServer) UDPHandle(ss Exchanger, src string, dstb []byte) error {
 	dst := socks5.ToAddress(dstb[0], dstb[1:len(dstb)-2], dstb[len(dstb)-2:])
 	if Debug {
-		log.Println("dial udp", dst)
+		log.Println("UDP", dst)
 	}
 	var ds map[string]byte
 	var c4 []*net.IPNet
@@ -344,7 +347,7 @@ func (s *WSServer) UDPHandle(ss Exchanger, src string, dstb []byte) error {
 	if s.BlockLock != nil {
 		s.BlockLock.RUnlock()
 	}
-	if BlockAddress(dst, ds, c4, c6, s.BlockCache) {
+	if BlockAddress(dst, ds, c4, c6, s.BlockCache, s.BlockGeoIP) {
 		return errors.New("block " + dst)
 	}
 	var laddr *net.UDPAddr
@@ -359,6 +362,13 @@ func (s *WSServer) UDPHandle(ss Exchanger, src string, dstb []byte) error {
 	var rc net.Conn
 	if s.Dial == nil {
 		rc, err = Dial.DialUDP("udp", laddr, raddr)
+		if err != nil {
+			if !strings.Contains(err.Error(), "address already in use") {
+				return err
+			}
+			rc, err = Dial.DialUDP("udp", nil, raddr)
+			laddr = nil
+		}
 	}
 	if s.Dial != nil {
 		la := ""
@@ -366,6 +376,13 @@ func (s *WSServer) UDPHandle(ss Exchanger, src string, dstb []byte) error {
 			la = laddr.String()
 		}
 		rc, err = s.Dial("udp", la, dst)
+		if err != nil {
+			if !strings.Contains(err.Error(), "address already in use") {
+				return err
+			}
+			rc, err = s.Dial("udp", "", dst)
+			laddr = nil
+		}
 	}
 	if err != nil {
 		return err

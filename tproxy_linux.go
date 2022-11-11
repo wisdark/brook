@@ -15,7 +15,6 @@
 package brook
 
 import (
-	"context"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -53,10 +52,11 @@ type Tproxy struct {
 	Cidr6         []*net.IPNet
 	BypassCache   *cache.Cache
 	WSClient      *WSClient
+	UDPOverTCP    bool
 }
 
 // NewTproxy.
-func NewTproxy(addr, s, password string, enableIPv6 bool, cidr4url, cidr6url string, tcpTimeout, udpTimeout int, address string, insecure, withoutbrook bool, roots *x509.CertPool) (*Tproxy, error) {
+func NewTproxy(addr, s, password string, enableIPv6 bool, cidr4url, cidr6url string, tcpTimeout, udpTimeout int, address string, insecure, withoutbrook bool, roots *x509.CertPool, udpovertcp bool) (*Tproxy, error) {
 	taddr, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
 		return nil, err
@@ -87,29 +87,19 @@ func NewTproxy(addr, s, password string, enableIPv6 bool, cidr4url, cidr6url str
 		if strings.HasPrefix(s, "wss://") && roots != nil {
 			wsc.TLSConfig.RootCAs = roots
 		}
-		wsc.DialTCP = tproxy.DialTCP
-	}
-	r := &net.Resolver{
-		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			c, err := net.Dial(network, "8.8.8.8:53")
-			if err != nil {
-				c, err = net.Dial(network, "[2001:4860:4860::8888]:53")
-			}
-			return c, err
-		},
 	}
 	h, p, err := net.SplitHostPort(hp)
 	if err != nil {
 		return nil, err
 	}
-	l, err := r.LookupIP(context.Background(), "ip4", h)
-	if err != nil {
-		return nil, err
+	ip, _ := Resolve6(h)
+	if ip == "" {
+		ip, _ = Resolve4(h)
 	}
-	if len(l) == 0 {
-		return nil, errors.New("Can not find server IPv4")
+	if ip == "" {
+		return nil, errors.New("Can not find server IP")
 	}
-	hp = net.JoinHostPort(l[0].String(), p)
+	hp = net.JoinHostPort(ip, p)
 	if wsc != nil {
 		wsc.ServerAddress = hp
 	}
@@ -156,6 +146,9 @@ func NewTproxy(addr, s, password string, enableIPv6 bool, cidr4url, cidr6url str
 		Cidr6:         c6,
 		BypassCache:   cache.New(cache.NoExpiration, cache.NoExpiration),
 		WSClient:      wsc,
+	}
+	if !strings.HasPrefix(s, "ws://") && !strings.HasPrefix(s, "wss://") {
+		t.UDPOverTCP = udpovertcp
 	}
 	return t, nil
 }
@@ -383,7 +376,7 @@ func (s *Tproxy) Shutdown() error {
 
 // TCPHandle handles request.
 func (s *Tproxy) TCPHandle(c *net.TCPConn) error {
-	if ListHasIP(s.Cidr4, s.Cidr6, c.LocalAddr().(*net.TCPAddr).IP, s.BypassCache) {
+	if ListHasIP(s.Cidr4, s.Cidr6, c.LocalAddr().(*net.TCPAddr).IP, s.BypassCache, nil) {
 		rc, err := Dial.Dial("tcp", c.LocalAddr().String())
 		if err != nil {
 			return err
@@ -432,7 +425,7 @@ func (s *Tproxy) TCPHandle(c *net.TCPConn) error {
 	var rc net.Conn
 	var err error
 	if s.WSClient == nil {
-		rc, err = tproxy.DialTCP("tcp", s.ServerTCPAddr.String())
+		rc, err = Dial.Dial("tcp", s.ServerTCPAddr.String())
 	}
 	if s.WSClient != nil {
 		rc, err = s.WSClient.DialWebsocket("")
@@ -480,24 +473,8 @@ func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
 	if ok {
 		laddr = any.(*net.UDPAddr)
 	}
-	if laddr == nil {
-		if addr.IP.To4() != nil {
-			laddr = &net.UDPAddr{
-				IP:   net.IPv4zero,
-				Port: 0,
-				Zone: addr.Zone,
-			}
-		}
-		if addr.IP.To4() == nil {
-			laddr = &net.UDPAddr{
-				IP:   net.IPv6zero,
-				Port: 0,
-				Zone: addr.Zone,
-			}
-		}
-	}
 
-	if ListHasIP(s.Cidr4, s.Cidr6, daddr.IP, s.BypassCache) {
+	if ListHasIP(s.Cidr4, s.Cidr6, daddr.IP, s.BypassCache, nil) {
 		any, ok := s.UDPExchanges.Get(src + dst)
 		if ok {
 			ue := any.(*UDPExchange)
@@ -508,7 +485,14 @@ func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
 		}
 		rc, err := Dial.DialUDP("udp", laddr, daddr)
 		if err != nil {
-			return err
+			if !strings.Contains(err.Error(), "address already in use") {
+				return err
+			}
+			rc, err = Dial.DialUDP("udp", nil, daddr)
+			if err != nil {
+				return err
+			}
+			laddr = nil
 		}
 		defer rc.Close()
 		if s.UDPTimeout != 0 {
@@ -516,12 +500,15 @@ func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
 				return err
 			}
 		}
-		if laddr.Port == 0 {
+		if laddr == nil {
 			s.UDPSrc.Set(src+dst, rc.LocalAddr().(*net.UDPAddr), -1)
 		}
 		c, err := tproxy.DialUDP("udp", daddr, addr)
 		if err != nil {
-			return errors.New(fmt.Sprintf("src: %s dst: %s %s", daddr.String(), addr.String(), err.Error()))
+			if strings.Contains(err.Error(), "address already in use") {
+				return nil
+			}
+			return errors.New(fmt.Sprintf("2: src: %s dst: %s %s", daddr.String(), addr.String(), err.Error()))
 		}
 		defer c.Close()
 		if s.UDPTimeout != 0 {
@@ -557,19 +544,22 @@ func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
 		return nil
 	}
 
-	if s.WSClient == nil {
+	if s.WSClient == nil && !s.UDPOverTCP {
 		any, ok = s.UDPExchanges.Get(src + dst)
 		if ok {
 			ue := any.(*UDPExchange)
 			return ue.Any.(*PacketClient).LocalToServer(ue.Dst, b, ue.Conn, s.UDPTimeout)
 		}
-		rc, err := tproxy.DialUDP("udp", laddr, s.ServerUDPAddr)
+		rc, err := Dial.DialUDP("udp", laddr, s.ServerUDPAddr)
 		if err != nil {
-			if strings.Contains(err.Error(), "address already in use") {
-				// we dont choose lock, so ignore this error
-				return nil
+			if !strings.Contains(err.Error(), "address already in use") {
+				return err
 			}
-			return err
+			rc, err = Dial.DialUDP("udp", nil, s.ServerUDPAddr)
+			if err != nil {
+				return err
+			}
+			laddr = nil
 		}
 		defer rc.Close()
 		if s.UDPTimeout != 0 {
@@ -577,12 +567,15 @@ func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
 				return err
 			}
 		}
-		if laddr.Port == 0 {
+		if laddr == nil {
 			s.UDPSrc.Set(src+dst, rc.LocalAddr().(*net.UDPAddr), -1)
 		}
 		c, err := tproxy.DialUDP("udp", daddr, addr)
 		if err != nil {
-			return errors.New(fmt.Sprintf("src: %s dst: %s %s", daddr.String(), addr.String(), err.Error()))
+			if strings.Contains(err.Error(), "address already in use") {
+				return nil
+			}
+			return errors.New(fmt.Sprintf("4: src: %s dst: %s %s", daddr.String(), addr.String(), err.Error()))
 		}
 		defer c.Close()
 		if s.UDPTimeout != 0 {
@@ -624,9 +617,42 @@ func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
 		ue := any.(*UDPExchange)
 		return ue.Any.(func(b []byte) error)(b)
 	}
-	rc, err := s.WSClient.DialWebsocket(laddr.String())
+	var rc net.Conn
+	var err error
+	if s.UDPOverTCP {
+		var laddrt *net.TCPAddr
+		if laddr != nil {
+			laddrt = &net.TCPAddr{
+				IP:   laddr.IP,
+				Port: laddr.Port,
+				Zone: laddr.Zone,
+			}
+		}
+		rc, err = Dial.DialTCP("tcp", laddrt, s.ServerTCPAddr)
+		if err != nil {
+			if !strings.Contains(err.Error(), "address already in use") {
+				return err
+			}
+			rc, err = Dial.DialTCP("tcp", nil, s.ServerTCPAddr)
+			laddr = nil
+		}
+	}
+	if s.WSClient != nil {
+		las := ""
+		if laddr != nil {
+			las = laddr.String()
+		}
+		rc, err = s.WSClient.DialWebsocket(las)
+		if err != nil {
+			if !strings.Contains(err.Error(), "address already in use") {
+				return err
+			}
+			rc, err = s.WSClient.DialWebsocket("")
+			laddr = nil
+		}
+	}
 	if err != nil {
-		return nil
+		return errors.New(fmt.Sprintf("5: src: %s dst: %s %s", laddr, s.ServerTCPAddr, err.Error()))
 	}
 	defer rc.Close()
 	if s.UDPTimeout != 0 {
@@ -634,7 +660,7 @@ func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
 			return err
 		}
 	}
-	if laddr.Port == 0 {
+	if laddr == nil {
 		s.UDPSrc.Set(src+dst, &net.UDPAddr{
 			IP:   rc.LocalAddr().(*net.TCPAddr).IP,
 			Port: rc.LocalAddr().(*net.TCPAddr).Port,
@@ -643,7 +669,10 @@ func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
 	}
 	c, err := tproxy.DialUDP("udp", daddr, addr)
 	if err != nil {
-		return errors.New(fmt.Sprintf("src: %s dst: %s %s", daddr.String(), addr.String(), err.Error()))
+		if strings.Contains(err.Error(), "address already in use") {
+			return nil
+		}
+		return errors.New(fmt.Sprintf("6: src: %s dst: %s %s", daddr.String(), addr.String(), err.Error()))
 	}
 	defer c.Close()
 	if s.UDPTimeout != 0 {
@@ -661,10 +690,10 @@ func (s *Tproxy) UDPHandle(addr, daddr *net.UDPAddr, b []byte) error {
 	dstb = append(dstb, h...)
 	dstb = append(dstb, p...)
 	var sc Exchanger
-	if !s.WSClient.WithoutBrook {
+	if s.UDPOverTCP || (s.WSClient != nil && !s.WSClient.WithoutBrook) {
 		sc, err = NewStreamClient("udp", s.Password, dstb, rc, s.UDPTimeout)
 	}
-	if s.WSClient.WithoutBrook {
+	if s.WSClient != nil && s.WSClient.WithoutBrook {
 		sc, err = NewSimpleStreamClient("udp", s.WSClient.PasswordSha256, dstb, rc, s.UDPTimeout)
 	}
 	if err != nil {

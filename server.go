@@ -19,6 +19,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -43,6 +44,7 @@ type Server struct {
 	BlockDomain  map[string]byte
 	BlockCIDR4   []*net.IPNet
 	BlockCIDR6   []*net.IPNet
+	BlockGeoIP   []string
 	BlockCache   *cache.Cache
 	BlockLock    *sync.RWMutex
 	Done         chan byte
@@ -50,7 +52,7 @@ type Server struct {
 }
 
 // NewServer.
-func NewServer(addr, password string, tcpTimeout, udpTimeout int, blockDomainList, blockCIDR4List, blockCIDR6List string, updateListInterval int64) (*Server, error) {
+func NewServer(addr, password string, tcpTimeout, udpTimeout int, blockDomainList, blockCIDR4List, blockCIDR6List string, updateListInterval int64, blockGeoIP []string) (*Server, error) {
 	taddr, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
 		return nil, err
@@ -103,6 +105,7 @@ func NewServer(addr, password string, tcpTimeout, udpTimeout int, blockDomainLis
 		BlockDomain:  ds,
 		BlockCIDR4:   c4,
 		BlockCIDR6:   c6,
+		BlockGeoIP:   blockGeoIP,
 		BlockCache:   cs3,
 		BlockLock:    lock,
 		Done:         done,
@@ -203,8 +206,22 @@ func (s *Server) RunTCPServer() error {
 					return
 				}
 			}
-			if err := s.TCPHandle(c); err != nil {
+			ss, dst, err := MakeStreamServer(s.Password, c, s.TCPTimeout, false)
+			if err != nil {
 				log.Println(err)
+				return
+			}
+			defer ss.Clean()
+			if ss.NetworkName() == "tcp" {
+				if err := s.TCPHandle(ss, dst); err != nil {
+					log.Println(err)
+				}
+			}
+			if ss.NetworkName() == "udp" {
+				ss.SetTimeout(s.UDPTimeout)
+				if err := s.UDPOverTCPHandle(ss, c.RemoteAddr().String(), dst); err != nil {
+					log.Println(err)
+				}
 			}
 		}(c)
 	}
@@ -236,15 +253,10 @@ func (s *Server) RunUDPServer() error {
 }
 
 // TCPHandle handles request.
-func (s *Server) TCPHandle(c *net.TCPConn) error {
-	ss, dst, err := MakeStreamServer(s.Password, c, s.TCPTimeout, false)
-	if err != nil {
-		return err
-	}
-	defer ss.Clean()
+func (s *Server) TCPHandle(ss Exchanger, dst []byte) error {
 	address := socks5.ToAddress(dst[0], dst[1:len(dst)-2], dst[len(dst)-2:])
 	if Debug {
-		log.Println("dial tcp", address)
+		log.Println("TCP", address)
 	}
 	var ds map[string]byte
 	var c4 []*net.IPNet
@@ -258,10 +270,11 @@ func (s *Server) TCPHandle(c *net.TCPConn) error {
 	if s.BlockLock != nil {
 		s.BlockLock.RUnlock()
 	}
-	if BlockAddress(address, ds, c4, c6, s.BlockCache) {
+	if BlockAddress(address, ds, c4, c6, s.BlockCache, s.BlockGeoIP) {
 		return errors.New("block " + address)
 	}
 	var rc net.Conn
+	var err error
 	if s.Dial == nil {
 		rc, err = Dial.Dial("tcp", address)
 	}
@@ -276,6 +289,78 @@ func (s *Server) TCPHandle(c *net.TCPConn) error {
 		if err := rc.SetDeadline(time.Now().Add(time.Duration(s.TCPTimeout) * time.Second)); err != nil {
 			return err
 		}
+	}
+	if err := ss.Exchange(rc); err != nil {
+		return nil
+	}
+	return nil
+}
+
+func (s *Server) UDPOverTCPHandle(ss Exchanger, src string, dstb []byte) error {
+	dst := socks5.ToAddress(dstb[0], dstb[1:len(dstb)-2], dstb[len(dstb)-2:])
+	if Debug {
+		log.Println("UDP", dst)
+	}
+	var ds map[string]byte
+	var c4 []*net.IPNet
+	var c6 []*net.IPNet
+	if s.BlockLock != nil {
+		s.BlockLock.RLock()
+	}
+	ds = s.BlockDomain
+	c4 = s.BlockCIDR4
+	c6 = s.BlockCIDR6
+	if s.BlockLock != nil {
+		s.BlockLock.RUnlock()
+	}
+	if BlockAddress(dst, ds, c4, c6, s.BlockCache, s.BlockGeoIP) {
+		return errors.New("block " + dst)
+	}
+	var laddr *net.UDPAddr
+	any, ok := s.UDPSrc.Get(src + dst)
+	if ok {
+		laddr = any.(*net.UDPAddr)
+	}
+	raddr, err := net.ResolveUDPAddr("udp", dst)
+	if err != nil {
+		return err
+	}
+	var rc net.Conn
+	if s.Dial == nil {
+		rc, err = Dial.DialUDP("udp", laddr, raddr)
+		if err != nil {
+			if !strings.Contains(err.Error(), "address already in use") {
+				return err
+			}
+			rc, err = Dial.DialUDP("udp", nil, raddr)
+			laddr = nil
+		}
+	}
+	if s.Dial != nil {
+		la := ""
+		if laddr != nil {
+			la = laddr.String()
+		}
+		rc, err = s.Dial("udp", la, dst)
+		if err != nil {
+			if !strings.Contains(err.Error(), "address already in use") {
+				return err
+			}
+			rc, err = s.Dial("udp", "", dst)
+			laddr = nil
+		}
+	}
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+	if s.UDPTimeout != 0 {
+		if err := rc.SetDeadline(time.Now().Add(time.Duration(s.UDPTimeout) * time.Second)); err != nil {
+			return err
+		}
+	}
+	if laddr == nil {
+		s.UDPSrc.Set(src+dst, rc.LocalAddr().(*net.UDPAddr), -1)
 	}
 	if err := ss.Exchange(rc); err != nil {
 		return nil
@@ -300,7 +385,7 @@ func (s *Server) UDPHandle(addr *net.UDPAddr, b []byte) error {
 		return nil
 	}
 	if Debug {
-		log.Println("dial udp", dst)
+		log.Println("UDP", dst)
 	}
 	var ds map[string]byte
 	var c4 []*net.IPNet
@@ -314,7 +399,7 @@ func (s *Server) UDPHandle(addr *net.UDPAddr, b []byte) error {
 	if s.BlockLock != nil {
 		s.BlockLock.RUnlock()
 	}
-	if BlockAddress(dst, ds, c4, c6, s.BlockCache) {
+	if BlockAddress(dst, ds, c4, c6, s.BlockCache, s.BlockGeoIP) {
 		return errors.New("block " + dst)
 	}
 	var laddr *net.UDPAddr
@@ -329,6 +414,13 @@ func (s *Server) UDPHandle(addr *net.UDPAddr, b []byte) error {
 	var rc net.Conn
 	if s.Dial == nil {
 		rc, err = Dial.DialUDP("udp", laddr, raddr)
+		if err != nil {
+			if !strings.Contains(err.Error(), "address already in use") {
+				return err
+			}
+			rc, err = Dial.DialUDP("udp", nil, raddr)
+			laddr = nil
+		}
 	}
 	if s.Dial != nil {
 		la := ""
@@ -336,6 +428,13 @@ func (s *Server) UDPHandle(addr *net.UDPAddr, b []byte) error {
 			la = laddr.String()
 		}
 		rc, err = s.Dial("udp", la, dst)
+		if err != nil {
+			if !strings.Contains(err.Error(), "address already in use") {
+				return err
+			}
+			rc, err = s.Dial("udp", "", dst)
+			laddr = nil
+		}
 	}
 	if err != nil {
 		return err

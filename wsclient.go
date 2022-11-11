@@ -27,6 +27,7 @@ import (
 	"log"
 	"net"
 	"net/url"
+	"strings"
 	"time"
 
 	cache "github.com/patrickmn/go-cache"
@@ -48,7 +49,6 @@ type WSClient struct {
 	TCPListen      *net.TCPListener
 	Path           string
 	UDPExchanges   *cache.Cache
-	DialTCP        func(network, addr string) (net.Conn, error)
 	WithoutBrook   bool
 	PasswordSha256 []byte
 }
@@ -118,10 +118,10 @@ func (x *WSClient) DialWebsocket(src string) (net.Conn, error) {
 		return nil, err
 	}
 	var c net.Conn
-	if x.DialTCP != nil {
-		c, err = x.DialTCP("tcp", a)
+	if Dial1 != nil {
+		c, err = Dial1.DialTCP("tcp", laddr, raddr)
 	}
-	if x.DialTCP == nil {
+	if Dial1 == nil {
 		c, err = Dial.DialTCP("tcp", laddr, raddr)
 	}
 	if err != nil {
@@ -201,7 +201,7 @@ func (x *WSClient) DialWebsocket(src string) (net.Conn, error) {
 func (x *WSClient) TCPHandle(s *socks5.Server, c *net.TCPConn, r *socks5.Request) error {
 	if r.Cmd == socks5.CmdConnect {
 		if Debug {
-			log.Println("dial tcp", r.Address())
+			log.Println("TCP", r.Address())
 		}
 		rc, err := x.DialWebsocket("")
 		if err != nil {
@@ -261,7 +261,7 @@ func (x *WSClient) UDPHandle(s *socks5.Server, addr *net.UDPAddr, d *socks5.Data
 		return ue.Any.(func(b []byte) error)(d.Data)
 	}
 	if Debug {
-		log.Println("dial udp", dst)
+		log.Println("UDP", dst)
 	}
 	var laddr *net.UDPAddr
 	any, ok = s.UDPSrc.Get(src + dst)
@@ -274,7 +274,14 @@ func (x *WSClient) UDPHandle(s *socks5.Server, addr *net.UDPAddr, d *socks5.Data
 	}
 	rc, err := x.DialWebsocket(la)
 	if err != nil {
-		return err
+		if !strings.Contains(err.Error(), "address already in use") {
+			return err
+		}
+		rc, err = x.DialWebsocket("")
+		if err != nil {
+			return err
+		}
+		laddr = nil
 	}
 	defer rc.Close()
 	if laddr == nil {

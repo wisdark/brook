@@ -1,36 +1,287 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
     <head>
-        <meta charset="UTF-8">
-        <title>Brook</title>
-        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
-        <meta name="description" content="Brook is a cross-platform strong encryption and not detectable proxy.">
-        <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
-        <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify/lib/themes/vue.css">
-    </head>
-    <body>
-        <nav>
-            <a href="#/">EN</a>
-            <a href="#/zh-cn/">中文</a>
-        </nav>
-        <div id="app"></div>
-        <script src="//cdn.jsdelivr.net/npm/docsify-edit-on-github"></script>
+        <!-- Google tag (gtag.js) -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-R3M673HK5V"></script>
         <script>
-            window.$docsify = {
-                name: 'Brook',
-                repo: 'txthinking/brook',
-                loadSidebar: true,
-                subMaxLevel: 1,
-                coverpage: true,
-                relativePath: true,
-                ga: 'UA-153534396-9',
-                coverpage: ['/', '/zh-cn/'],
-                plugins: [
-                    EditOnGithubPlugin.create("https://github.com/txthinking/brook/blob/master/docs/", null, "Edit on Github")
-                ]
+            window.dataLayer = window.dataLayer || [];
+            function gtag() {
+                dataLayer.push(arguments);
             }
+            gtag("js", new Date());
+
+            gtag("config", "G-R3M673HK5V");
         </script>
-        <script src="//cdn.jsdelivr.net/npm/docsify/lib/docsify.min.js"></script>
-        <script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/ga.min.js"></script>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@1.5.3/css/pico.min.css" />
+        <script src="https://unpkg.com/vue@3.2.29/dist/vue.global.prod.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+        <title>Brook</title>
+        <style>
+            [data-theme="light"],
+            :root:not([data-theme="dark"]) {
+                --primary: #000000;
+                --primary-inverse: #ffffff;
+            }
+            @media (min-width: 992px) {
+                .dm {
+                    display: flex;
+                    justify-content: center;
+                }
+                .dm > article {
+                    width: 500px;
+                }
+            }
+        </style>
+        <script>
+            window.addEventListener("DOMContentLoaded", async (e) => {
+                var app = {
+                    data() {
+                        return {
+                            ing3: false,
+                            p3c: "",
+                            ing7: false,
+                            p7c: "",
+                            p: 0,
+                            zh: navigator.language.toLowerCase() == "zh-cn",
+                        };
+                    },
+                    methods: {
+                        async p3() {
+                            if (this.ing3) {
+                                return;
+                            }
+                            this.p = 3;
+                            this.ing3 = true;
+                            try {
+                                var r = await fetch("cli.md");
+                                if (r.status != 200) {
+                                    throw r.status;
+                                }
+                                this.p3c = marked.parse(await r.text());
+                            } catch (e) {
+                                alert(`${e}`);
+                            }
+                            this.ing3 = false;
+                        },
+                        async p7() {
+                            if (this.ing7) {
+                                return;
+                            }
+                            this.p = 7;
+                            this.ing7 = true;
+                            try {
+                                var r = await fetch(this.zh ? "example-zh.md" : "example.md");
+                                if (r.status != 200) {
+                                    throw r.status;
+                                }
+                                this.p7c = marked.parse(await r.text());
+                            } catch (e) {
+                                alert(`${e}`);
+                            }
+                            this.ing7 = false;
+                        },
+                    },
+                };
+                Vue.createApp(app).mount("body");
+            });
+        </script>
+    </head>
+    <body style="margin: 0">
+        <nav class="container-fluid" style="background-color: #000000">
+            <ul>
+                <li>
+                    <a href="https://github.com/txthinking/brook"><strong style="color: #ffffff">Brook</strong></a>
+                </li>
+            </ul>
+            <ul>
+                <li><a target="_blank" style="color: #ffffff" href="https://www.txthinking.com/talks/">Talks</a></li>
+                <li><a target="_blank" style="color: #ffffff" href="https://www.youtube.com/txthinking">YouTube</a></li>
+                <li><a target="_blank" style="color: #ffffff" href="https://t.me/s/txthinking_news">News</a></li>
+                <li><a target="_blank" style="color: #ffffff" href="https://t.me/brookgroup">Telegram</a></li>
+            </ul>
+        </nav>
+        <main class="container">
+            <center><h1>{{ zh ? '一个为开发者设计的跨平台网络工具' : 'A cross-platform network tool designed for developers' }}</h1></center>
+            <div style="display: flex; justify-content: center; flex-wrap: wrap">
+                <div><button :class="p!=0 ? 'contrast outline' : ''" @click="()=>this.p=0">{{ zh ? '快速上手' : 'Getting Started' }}</button></div>
+            </div>
+            <div style="display: flex; justify-content: center; flex-wrap: wrap">
+                <div><button :class="p!=1 ? 'contrast outline' : ''" @click="()=>this.p=1">{{ zh ? '安装命令行' : 'Install CLI' }}</button></div>
+                <div style="width: 30px"></div>
+                <div><button :class="p!=2 ? 'contrast outline' : ''" @click="()=>this.p=2">{{ zh ? '安装图形端' : 'Install GUI' }}</button></div>
+            </div>
+            <div style="display: flex; justify-content: center; flex-wrap: wrap">
+                <div><button :class="p!=3 ? 'contrast outline' : ''" @click="p3" :aria-busy="ing3 ? 'true' : ''">{{ zh ? '命令行文档' : 'CLI Document' }}</button></div>
+                <div style="width: 30px"></div>
+                <div><a class="contrast outline" :href="zh ? 'https://www.txthinking.com/talks/articles/brook.article' : 'https://www.txthinking.com/talks/articles/brook-en.article'" target="_blank" role="button">{{ zh ? '图形端原理' : 'How GUI works' }}</a></div>
+                <div style="width: 30px"></div>
+                <div><button :class="p!=4 ? 'contrast outline' : ''" @click="()=>this.p=4">{{ zh ? '守护进程' : 'Daemon' }}</button></div>
+                <div style="width: 30px"></div>
+                <div><button :class="p!=5 ? 'contrast outline' : ''" @click="()=>this.p=5">{{ zh ? '开机自启' : 'Auto Start at Boot' }}</button></div>
+                <div style="width: 30px"></div>
+                <div><button :class="p!=6 ? 'contrast outline' : ''" @click="()=>this.p=6">{{ zh ? '一键脚本' : 'One Click Script' }}</button></div>
+                <div style="width: 30px"></div>
+                <div><button :class="p!=7 ? 'contrast outline' : ''" @click="p7">{{ zh ? '一些例子' : 'Some Examples' }}</button></div>
+            </div>
+            <div class="dm" v-if="p==0">
+                <article>
+                    <div><h6>{{ zh ? '服务端' : 'Server' }}</h6></div>
+                    <pre><code>bash <(curl https://bash.ooo/nami.sh)</code></pre>
+                    <pre><code>nami install joker brook
+joker brook server -l :9999 -p hello</code></pre>
+                    <div style="padding: 20px"><hr /></div>
+                    <div>
+                        <div>
+                            <h6>{{ zh ? '图形客户端' : 'GUI Client' }} <i style="font-size: 10px">{{ zh ? '替换 1.2.3.4 为你的服务器IP' : 'replace 1.2.3.4 with your server IP'}}</i></h6>
+                        </div>
+                        <div>
+                            <div style="font-size: 14px">brook server: <code style="font-size: 12px">1.2.3.4:9999</code></div>
+                            <div style="height: 5px"></div>
+                            <div style="font-size: 14px">password: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code style="font-size: 12px">hello</code></div>
+                        </div>
+                        <div style="height: 20px"></div>
+                        <div>
+                            <h6>{{ zh ? '命令客户端' : 'CLI Client'}} <i style="font-size: 10px">{{ zh ? '创建' : 'create' }} socks5://127.0.0.1:1080</i></h6>
+                        </div>
+                        <code style="font-size: 12px">brook client -s 1.2.3.4:9999 -p hello</code>
+                    </div>
+                </article>
+            </div>
+            <div class="dm" v-if="p==1">
+                <article>
+                    <div>
+                        <h6><a href="https://github.com/txthinking/nami" target="_blank">nami</a> <i style="font-size: 10px">{{ zh ? '从任何地方下载任何东西' : 'The easy way to download anything from anywhere' }}</i></h6>
+                    </div>
+                    <pre><code>bash <(curl https://bash.ooo/nami.sh)</code></pre>
+                    <div>
+                        <h6><a href="https://github.com/txthinking/brook" target="_blank">brook</a></h6>
+                    </div>
+                    <pre><code>nami install brook</code></pre>
+                    <hr />
+                    <div>
+                        <h6><a href="https://github.com/txthinking/joker" target="_blank">joker</a> <i style="font-size: 10px">{{ zh ? '守护进程' : 'daemon' }}</i></h6>
+                    </div>
+                    <pre><code>nami install joker</code></pre>
+                    <div>
+                        <h6><a href="https://github.com/txthinking/jinbe" target="_blank">jinbe</a> <i style="font-size: 10px">{{ zh ? '开机自启. 感谢小猫猫' : 'auto start at boot. thanks to the cute cat' }}</i></h6>
+                    </div>
+                    <pre><code>nami install jinbe</code></pre>
+                    <div>
+                        <h6><a href="https://github.com/txthinking/tun2brook" target="_blank">tun2brook</a> <i style="font-size: 10px">{{ zh ? '客户端侧代理系统所有流量' : 'proxy all traffic on client-side' }}</i></h6>
+                    </div>
+                    <pre><code>nami install tun2brook</code></pre>
+                    <hr />
+                    <div>
+                        <h6>
+                            <a href="https://archlinux.org" target="_blank">via pacman</a> <a style="text-decoration: none" href="https://github.com/felixonmars" target="_blank"><i style="font-size: 10px">{{ zh ? '由 felixonmars 维护' : 'maintained by felixonmars' }}</i></a>
+                        </h6>
+                    </div>
+                    <pre><code>pacman -S brook</code></pre>
+                    <div>
+                        <h6>
+                            <a href="https://github.com/Homebrew/brew" target="_blank">via brew</a> <a style="text-decoration: none" href="https://github.com/Homebrew/homebrew-core/blob/HEAD/Formula/brook.rb" target="_blank"><i style="font-size: 10px">{{ zh ? '维护者' : 'maintainers' }}</i></a>
+                        </h6>
+                    </div>
+                    <pre><code>brew install brook</code></pre>
+                </article>
+            </div>
+            <div v-if="p==2">
+                <article>
+                    <div style="display: flex; flex-direction: row; justify-content: space-around; flex-wrap: wrap">
+                        <a href="https://apps.apple.com/us/app/brook-a-cross-platform-proxy/id1216002642" target="_blank"
+                            ><div style="display: flex; flex-direction: column; align-items: center; padding: 30px">
+                                <img src="./images/appstore.png" style="width: 50px; height: 50px" />
+                                <div style="font-size: 12px">iOS / M1 Mac</div>
+                            </div></a
+                        ><a href="https://github.com/txthinking/brook/releases/latest/download/Brook.apk"
+                            ><div style="display: flex; flex-direction: column; align-items: center; padding: 30px">
+                                <img src="./images/android.png" style="width: 50px; height: 50px" />
+                                <div style="font-size: 12px">Android APK</div>
+                            </div></a
+                        ><a href="https://github.com/txthinking/brook/releases/latest/download/Brook.dmg"
+                            ><div style="display: flex; flex-direction: column; align-items: center; padding: 30px">
+                                <img src="./images/mac.png" style="width: 50px; height: 50px" />
+                                <div style="font-size: 12px">Intel Mac</div>
+                            </div></a
+                        ><a href="https://github.com/txthinking/brook/releases/latest/download/Brook.exe"
+                            ><div style="display: flex; flex-direction: column; align-items: center; padding: 30px">
+                                <img src="./images/windows.png" style="width: 50px; height: 50px" />
+                                <div style="font-size: 12px">Windows EXE</div>
+                            </div></a
+                        >
+                        <a href="https://github.com/txthinking/brook/releases" target="_blank"
+                            ><div style="display: flex; flex-direction: column; align-items: center; padding: 30px">
+                                <img src="./images/openwrt.png" style="width: 50px; height: 50px" />
+                                <div style="font-size: 12px">OpenWrt IPK</div>
+                            </div></a
+                        >
+                        <a href="https://chrome.google.com/webstore/detail/hnpgnjkeaobghpjjhaiemlahikgmnghb" target="_blank"
+                            ><div style="display: flex; flex-direction: column; align-items: center; padding: 30px">
+                                <img src="./images/sc.png" style="width: 50px; height: 50px" />
+                                <div style="font-size: 12px">Chrome EXT</div>
+                            </div></a
+                        >
+                    </div>
+                </article>
+            </div>
+            <div v-if="p==3">
+                <article v-html="p3c"></article>
+            </div>
+            <div class="dm" v-if="p==4">
+                <article>
+                    <div>
+                        <h6>{{ zh ? '使用 joker 运行 brook 守护进程' : 'Run the brook daemon with joker' }}</h6>
+                    </div>
+                    <pre><code>joker brook server -l :9999 -p hello</code></pre>
+                    <div>
+                        <h6>{{ zh ? '查看最后一个命令的 ID' : 'Get the last command ID' }}</h6>
+                    </div>
+                    <pre><code>joker last</code></pre>
+                    <div>
+                        <h6>{{ zh ? '查看某个命令的输出和错误' : 'View output and error of a command' }}</h6>
+                    </div>
+                    <pre><code>joker log ID</code></pre>
+                    <div>
+                        <h6>{{ zh ? '查看运行的命令列表' : 'View running commmands' }}</h6>
+                    </div>
+                    <pre><code>joker list</code></pre>
+                    <div>
+                        <h6>{{ zh ? '停止某个命令' : 'Stop a running command' }}</h6>
+                    </div>
+                    <pre><code>joker stop ID</code></pre>
+                </article>
+            </div>
+            <div class="dm" v-if="p==5">
+                <article>
+                    <div>
+                        <h6>{{ zh ? '添加开机自启命令' : 'Add one auto-start command at boot' }}</h6>
+                    </div>
+                    <pre><code>jinbe joker brook server -l :9999 -p hello</code></pre>
+                    <div>
+                        <h6>{{ zh ? '查看添加的开机命令' : 'View added commmands' }}</h6>
+                    </div>
+                    <pre><code>jinbe list</code></pre>
+                    <div>
+                        <h6>{{ zh ? '移除某个开机命令' : 'Remove one added command' }}</h6>
+                    </div>
+                    <pre><code>jinbe remove ID</code></pre>
+                </article>
+            </div>
+            <div class="dm" v-if="p==6">
+                <article>
+                    <pre><code>bash <(curl https://bash.ooo/brook.sh)</code></pre>
+                </article>
+            </div>
+            <div v-if="p==7">
+                <article v-html="p7c"></article>
+            </div>
+        </main>
+        <footer class="container" style="font-size: 14px; color: #919191">
+            <center>
+                <p style="font-size: 14px; color: #919191"><a style="font-size: 14px; color: #919191" href="https://github.com/txthinking/brook/tree/master/protocol">Protocol</a></p>
+            </center>
+        </footer>
     </body>
 </html>
