@@ -16,18 +16,14 @@ package brook
 
 import (
 	"log"
+	"net/url"
 	"testing"
 )
 
 func TestTest(t *testing.T) {
-	log.Println(Resolve6("http3.ooo"))
-	log.Println(Resolve4("http3.ooo"))
-	log.Println(Resolve6("2001:4860:4860::8888"))
-	log.Println(Resolve6("8.8.8.8"))
-	log.Println(Resolve4("2001:4860:4860::8888"))
-	log.Println(Resolve4("8.8.8.8"))
-	log.Println(Resolve6("a"))
-	log.Println(Resolve4("a"))
-	log.Println(Resolve6("mtalk.google.com"))
-	log.Println(Resolve4("mtalk.google.com"))
+	v := url.Values{}
+	v.Set("password", "hello")
+	s := Link("server", "1.2.3.4:5", v)
+	log.Println(s)
+	log.Println(ParseLink(s))
 }

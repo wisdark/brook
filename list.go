@@ -19,7 +19,6 @@ import (
 	"context"
 	"errors"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -28,21 +27,6 @@ import (
 	cache "github.com/patrickmn/go-cache"
 	"github.com/phuslu/iploc"
 )
-
-func BlockAddress(address string, ds map[string]byte, c4, c6 []*net.IPNet, c *cache.Cache, geo []string) bool {
-	if ds == nil && c4 == nil && c6 == nil && len(geo) == 0 {
-		return false
-	}
-	h, _, err := net.SplitHostPort(address)
-	if err != nil {
-		return true
-	}
-	i := net.ParseIP(h)
-	if i == nil {
-		return ListHasDomain(ds, h, c)
-	}
-	return ListHasIP(c4, c6, i, c, geo)
-}
 
 func ListHasDomain(ds map[string]byte, domain string, c *cache.Cache) bool {
 	if ds == nil {
@@ -154,7 +138,7 @@ func ReadCIDRList(url string) ([]*net.IPNet, error) {
 	for _, v := range l {
 		_, in, err := net.ParseCIDR(v)
 		if err != nil {
-			log.Println("net.ParseCIDR", v, err)
+			Log(&Error{"when": "net.ParseCIDR", "cidr": v, "error": err.Error()})
 			continue
 		}
 		c = append(c, in)

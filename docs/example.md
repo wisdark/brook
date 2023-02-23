@@ -259,7 +259,8 @@ Rule
 **No need to manipulate iptables!**
 
 ```
-opkg install ca-certificates openssl-util ca-bundle coreutils-nohup iptables-mod-tproxy
+opkg update
+opkg install ca-certificates openssl-util ca-bundle coreutils-nohup iptables iptables-mod-tproxy iptables-mod-socket ip6tables
 ```
 
 ```
@@ -310,7 +311,10 @@ brook tproxy --link 'brook://...' --dnsListen :53
 
 ### GUI for official OpenWrt
 
-> **Dependencies: ca-certificates openssl-util ca-bundle coreutils-nohup iptables-mod-tproxy**
+```
+opkg update
+opkg install ca-certificates openssl-util ca-bundle coreutils-nohup iptables iptables-mod-tproxy iptables-mod-socket ip6tables
+```
 
 **No need to manipulate iptables!**
 
