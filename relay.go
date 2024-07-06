@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+	"github.com/txthinking/brook/limits"
 	"github.com/txthinking/runnergroup"
 	"github.com/txthinking/socks5"
 )
@@ -36,6 +37,9 @@ type Relay struct {
 }
 
 func NewRelay(from, to string, tcpTimeout, udpTimeout int) (*Relay, error) {
+	if err := limits.Raise(); err != nil {
+		Log(Error{"when": "try to raise system limits", "warning": err.Error()})
+	}
 	a, h, p, err := socks5.ParseAddress(to)
 	if err != nil {
 		return nil, err
@@ -71,7 +75,7 @@ func (s *Relay) ListenAndServe() error {
 				go func(c *net.TCPConn) {
 					defer c.Close()
 					if err := s.TCPHandle(c); err != nil {
-						Log(&Error{"from": c.RemoteAddr().String(), "error": err.Error()})
+						Log(Error{"from": c.RemoteAddr().String(), "error": err.Error()})
 					}
 				}(c)
 			}
@@ -101,7 +105,7 @@ func (s *Relay) ListenAndServe() error {
 				}
 				go func(addr *net.UDPAddr, b []byte) {
 					if err := s.UDPHandle(addr, b, l1); err != nil {
-						Log(&Error{"from": addr.String(), "error": err.Error()})
+						Log(Error{"from": addr.String(), "error": err.Error()})
 						return
 					}
 				}(addr, b[0:n])

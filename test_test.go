@@ -16,14 +16,12 @@ package brook
 
 import (
 	"log"
-	"net/url"
+	"net"
 	"testing"
+
+	"github.com/phuslu/iploc"
 )
 
 func TestTest(t *testing.T) {
-	v := url.Values{}
-	v.Set("password", "hello")
-	s := Link("server", "1.2.3.4:5", v)
-	log.Println(s)
-	log.Println(ParseLink(s))
+	log.Printf("%#v\n", iploc.Country(net.ParseIP("8.8.8.8")))
 }

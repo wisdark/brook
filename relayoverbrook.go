@@ -17,8 +17,11 @@ package brook
 import (
 	"errors"
 	"net"
+	"os/exec"
+	"runtime"
 
 	"github.com/miekg/dns"
+	"github.com/txthinking/brook/limits"
 	"github.com/txthinking/runnergroup"
 	"github.com/txthinking/socks5"
 )
@@ -36,6 +39,9 @@ type RelayOverBrook struct {
 }
 
 func NewRelayOverBrook(from, link, to string, tcpTimeout, udpTimeout int) (*RelayOverBrook, error) {
+	if err := limits.Raise(); err != nil {
+		Log(Error{"when": "try to raise system limits", "warning": err.Error()})
+	}
 	a, h, p, err := socks5.ParseAddress(to)
 	if err != nil {
 		return nil, err
@@ -43,6 +49,22 @@ func NewRelayOverBrook(from, link, to string, tcpTimeout, udpTimeout int) (*Rela
 	blk, err := NewBrookLink(link)
 	if err != nil {
 		return nil, err
+	}
+	if blk.Kind == "quicserver" {
+		if runtime.GOOS == "linux" {
+			c := exec.Command("sysctl", "-w", "net.core.rmem_max=2500000")
+			b, err := c.CombinedOutput()
+			if err != nil {
+				Log(Error{"when": "try to raise UDP Receive Buffer Size", "warning": string(b)})
+			}
+		}
+		if runtime.GOOS == "darwin" {
+			c := exec.Command("sysctl", "-w", "kern.ipc.maxsockbuf=3014656")
+			b, err := c.CombinedOutput()
+			if err != nil {
+				Log(Error{"when": "try to raise UDP Receive Buffer Size", "warning": string(b)})
+			}
+		}
 	}
 	s := &RelayOverBrook{
 		From:        from,
@@ -76,7 +98,7 @@ func (s *RelayOverBrook) ListenAndServe() error {
 				go func(c *net.TCPConn) {
 					defer c.Close()
 					if err := s.TCPHandle(c); err != nil {
-						Log(&Error{"from": c.RemoteAddr().String(), "error": err.Error()})
+						Log(Error{"from": c.RemoteAddr().String(), "error": err.Error()})
 					}
 				}(c)
 			}
@@ -106,7 +128,7 @@ func (s *RelayOverBrook) ListenAndServe() error {
 				}
 				go func(addr *net.UDPAddr, b []byte) {
 					if err := s.UDPHandle(addr, b, l1); err != nil {
-						Log(&Error{"from": addr.String(), "error": err.Error()})
+						Log(Error{"from": addr.String(), "error": err.Error()})
 						return
 					}
 				}(addr, b[0:n])
@@ -121,17 +143,12 @@ func (s *RelayOverBrook) ListenAndServe() error {
 }
 
 func (s *RelayOverBrook) TCPHandle(c *net.TCPConn) error {
-	sc, err := s.blk.CreateExchanger("tcp", c.RemoteAddr().String(), s.dstb, s.TCPTimeout, s.UDPTimeout)
+	sc, rc, err := s.blk.CreateExchanger("tcp", c.RemoteAddr().String(), s.dstb, s.TCPTimeout, s.UDPTimeout)
 	if err != nil {
 		return err
 	}
+	defer rc.Close()
 	defer sc.Clean()
-	if v, ok := sc.(*StreamClient); ok {
-		defer v.Server.Close()
-	}
-	if v, ok := sc.(*SimpleStreamClient); ok {
-		defer v.Server.Close()
-	}
 	if err := sc.Exchange(c); err != nil {
 		return nil
 	}
@@ -165,23 +182,12 @@ func (s *RelayOverBrook) UDPHandle(addr *net.UDPAddr, b []byte, l1 *net.UDPConn)
 		return nil
 	}
 	defer conn.Close()
-	sc, err := s.blk.CreateExchanger("udp", addr.String(), s.dstb, s.TCPTimeout, s.UDPTimeout)
+	sc, rc, err := s.blk.CreateExchanger("udp", addr.String(), s.dstb, s.TCPTimeout, s.UDPTimeout)
 	if err != nil {
 		return err
 	}
+	defer rc.Close()
 	defer sc.Clean()
-	if v, ok := sc.(*PacketClient); ok {
-		defer v.Server.Close()
-	}
-	if v, ok := sc.(*StreamClient); ok {
-		defer v.Server.Close()
-	}
-	if v, ok := sc.(*SimplePacketClient); ok {
-		defer v.Server.Close()
-	}
-	if v, ok := sc.(*SimpleStreamClient); ok {
-		defer v.Server.Close()
-	}
 	if err := sc.Exchange(conn); err != nil {
 		return nil
 	}

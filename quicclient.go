@@ -23,7 +23,6 @@ import (
 	"runtime"
 
 	"github.com/txthinking/brook/limits"
-	crypto1 "github.com/txthinking/crypto"
 	"github.com/txthinking/socks5"
 )
 
@@ -49,25 +48,25 @@ func NewQUICClient(addr, ip, server, password string, tcpTimeout, udpTimeout int
 		return nil, err
 	}
 	if err := limits.Raise(); err != nil {
-		Log(&Error{"when": "try to raise system limits", "warning": err.Error()})
+		Log(Error{"when": "try to raise system limits", "warning": err.Error()})
 	}
 	if runtime.GOOS == "linux" {
 		c := exec.Command("sysctl", "-w", "net.core.rmem_max=2500000")
 		b, err := c.CombinedOutput()
 		if err != nil {
-			Log(&Error{"when": "try to raise UDP Receive Buffer Size", "warning": string(b)})
+			Log(Error{"when": "try to raise UDP Receive Buffer Size", "warning": string(b)})
 		}
 	}
 	if runtime.GOOS == "darwin" {
 		c := exec.Command("sysctl", "-w", "kern.ipc.maxsockbuf=3014656")
 		b, err := c.CombinedOutput()
 		if err != nil {
-			Log(&Error{"when": "try to raise UDP Receive Buffer Size", "warning": string(b)})
+			Log(Error{"when": "try to raise UDP Receive Buffer Size", "warning": string(b)})
 		}
 	}
 	p := []byte(password)
 	if withoutbrook {
-		p, err = crypto1.SHA256Bytes([]byte(password))
+		p, err = SHA256Bytes([]byte(password))
 		if err != nil {
 			return nil, err
 		}
@@ -99,7 +98,7 @@ func (x *QUICClient) TCPHandle(s *socks5.Server, c *net.TCPConn, r *socks5.Reque
 		if sa == "" {
 			sa = x.ServerHost
 		}
-		rc, err := QUICDialTCP("", "", sa, x.ServerHost, x.TLSConfig, x.TCPTimeout)
+		rc, err := QUICDialTCP("", "", sa, x.TLSConfig, x.TCPTimeout)
 		if err != nil {
 			return ErrorReply(r, c, err)
 		}
@@ -162,7 +161,7 @@ func (x *QUICClient) UDPHandle(s *socks5.Server, addr *net.UDPAddr, d *socks5.Da
 	if sa == "" {
 		sa = x.ServerHost
 	}
-	rc, err := QUICDialUDP(addr.String(), d.Address(), sa, x.ServerHost, x.TLSConfig, x.UDPTimeout)
+	rc, err := QUICDialUDP(addr.String(), d.Address(), sa, x.TLSConfig, x.UDPTimeout)
 	if err != nil {
 		return err
 	}

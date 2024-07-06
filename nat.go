@@ -43,6 +43,12 @@ func (n *NATTable) Get(src, dst string) string {
 	return s
 }
 
+func (n *NATTable) Reset() {
+	n.Lock.Lock()
+	defer n.Lock.Unlock()
+	n.Table = map[string]string{}
+}
+
 var NATDial func(network string, src, dst, addr string) (net.Conn, error) = func(network string, src, dst, addr string) (net.Conn, error) {
 	s := NAT.Get(src, dst)
 	var c net.Conn
@@ -54,7 +60,7 @@ var NATDial func(network string, src, dst, addr string) (net.Conn, error) = func
 		c, err = DialUDP(network, s, addr)
 	}
 	if err != nil {
-		if !strings.Contains(err.Error(), "address already in use") {
+		if !strings.Contains(err.Error(), "address already in use") && !strings.Contains(err.Error(), "assign requested address") {
 			return nil, err
 		}
 		if network == "tcp" {
@@ -86,7 +92,7 @@ var NATListenUDP func(network string, src, dst string) (*net.UDPConn, error) = f
 	}
 	c, err := ListenUDP("udp", laddr)
 	if err != nil {
-		if !strings.Contains(err.Error(), "address already in use") {
+		if !strings.Contains(err.Error(), "address already in use") && !strings.Contains(err.Error(), "assign requested address") {
 			return nil, err
 		}
 		c, err = ListenUDP("udp", nil)

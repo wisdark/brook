@@ -19,8 +19,8 @@ import (
 	"net"
 	"net/url"
 
+	utls "github.com/refraction-networking/utls"
 	"github.com/txthinking/brook/limits"
-	crypto1 "github.com/txthinking/crypto"
 	"github.com/txthinking/socks5"
 )
 
@@ -29,6 +29,7 @@ type WSClient struct {
 	ServerHost        string
 	ServerAddress     string
 	TLSConfig         *tls.Config
+	TLSFingerprint    utls.ClientHelloID
 	Password          []byte
 	TCPTimeout        int
 	UDPTimeout        int
@@ -38,6 +39,9 @@ type WSClient struct {
 }
 
 func NewWSClient(addr, ip, server, password string, tcpTimeout, udpTimeout int, withoutbrook bool) (*WSClient, error) {
+	if err := limits.Raise(); err != nil {
+		Log(Error{"when": "try to raise system limits", "warning": err.Error()})
+	}
 	s5, err := socks5.NewClassicServer(addr, ip, "", "", tcpTimeout, udpTimeout)
 	if err != nil {
 		return nil, err
@@ -46,16 +50,13 @@ func NewWSClient(addr, ip, server, password string, tcpTimeout, udpTimeout int, 
 	if err != nil {
 		return nil, err
 	}
-	if err := limits.Raise(); err != nil {
-		Log(&Error{"when": "try to raise system limits", "warning": err.Error()})
-	}
 	path := u.Path
 	if path == "" {
 		path = "/ws"
 	}
 	p := []byte(password)
 	if withoutbrook {
-		p, err = crypto1.SHA256Bytes([]byte(password))
+		p, err = SHA256Bytes([]byte(password))
 		if err != nil {
 			return nil, err
 		}
@@ -75,7 +76,7 @@ func NewWSClient(addr, ip, server, password string, tcpTimeout, udpTimeout int, 
 		if err != nil {
 			return nil, err
 		}
-		x.TLSConfig = &tls.Config{ServerName: h}
+		x.TLSConfig = &tls.Config{ServerName: h, NextProtos: []string{"http/1.1"}}
 	}
 	return x, nil
 }
@@ -90,7 +91,7 @@ func (x *WSClient) TCPHandle(s *socks5.Server, c *net.TCPConn, r *socks5.Request
 		if sa == "" {
 			sa = x.ServerHost
 		}
-		rc, err := WebSocketDial("", "", sa, x.ServerHost, x.Path, x.TLSConfig, x.TCPTimeout)
+		rc, err := WebSocketDial("", "", sa, x.ServerHost, x.Path, x.TLSConfig, x.TCPTimeout, x.TLSFingerprint, 0, 0, 0, 0)
 		if err != nil {
 			return ErrorReply(r, c, err)
 		}
@@ -150,7 +151,7 @@ func (x *WSClient) UDPHandle(s *socks5.Server, addr *net.UDPAddr, d *socks5.Data
 	if sa == "" {
 		sa = x.ServerHost
 	}
-	rc, err := WebSocketDial(addr.String(), d.Address(), sa, x.ServerHost, x.Path, x.TLSConfig, x.TCPTimeout)
+	rc, err := WebSocketDial(addr.String(), d.Address(), sa, x.ServerHost, x.Path, x.TLSConfig, x.TCPTimeout, x.TLSFingerprint, 0, 0, 0, 0)
 	if err != nil {
 		return err
 	}

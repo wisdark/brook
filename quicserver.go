@@ -26,7 +26,6 @@ import (
 
 	"github.com/quic-go/quic-go"
 	"github.com/txthinking/brook/limits"
-	crypto1 "github.com/txthinking/crypto"
 	"github.com/txthinking/runnergroup"
 	"github.com/txthinking/socks5"
 	"golang.org/x/crypto/acme/autocert"
@@ -47,20 +46,20 @@ type QUICServer struct {
 
 func NewQUICServer(addr, password, domain string, tcpTimeout, udpTimeout int, withoutbrook bool) (*QUICServer, error) {
 	if err := limits.Raise(); err != nil {
-		Log(&Error{"when": "try to raise system limits", "warning": err.Error()})
+		Log(Error{"when": "try to raise system limits", "warning": err.Error()})
 	}
 	if runtime.GOOS == "linux" {
 		c := exec.Command("sysctl", "-w", "net.core.rmem_max=2500000")
 		b, err := c.CombinedOutput()
 		if err != nil {
-			Log(&Error{"when": "try to raise UDP Receive Buffer Size", "warning": string(b)})
+			Log(Error{"when": "try to raise UDP Receive Buffer Size", "warning": string(b)})
 		}
 	}
 	if runtime.GOOS == "darwin" {
 		c := exec.Command("sysctl", "-w", "kern.ipc.maxsockbuf=3014656")
 		b, err := c.CombinedOutput()
 		if err != nil {
-			Log(&Error{"when": "try to raise UDP Receive Buffer Size", "warning": string(b)})
+			Log(Error{"when": "try to raise UDP Receive Buffer Size", "warning": string(b)})
 		}
 	}
 	var p []byte
@@ -71,7 +70,7 @@ func NewQUICServer(addr, password, domain string, tcpTimeout, udpTimeout int, wi
 	}
 	if withoutbrook {
 		var err error
-		p, err = crypto1.SHA256Bytes([]byte(password))
+		p, err = SHA256Bytes([]byte(password))
 		if err != nil {
 			return nil, err
 		}
@@ -145,12 +144,19 @@ func (s *QUICServer) ListenAndServe() error {
 								ss, err = NewSimpleStreamServer(s.Password, c.RemoteAddr().String(), c, s.TCPTimeout, s.UDPTimeout)
 							}
 							if err != nil {
-								Log(&Error{"from": c.RemoteAddr().String(), "error": err.Error()})
+								Log(Error{"from": c.RemoteAddr().String(), "error": err.Error()})
 								return
 							}
 							defer ss.Clean()
-							if err := s.TCPHandle(ss); err != nil {
-								Log(&Error{"from": ss.Src(), "dst": ss.Dst(), "error": err.Error()})
+							if ss.Network() == "tcp" {
+								if err := s.TCPHandle(ss); err != nil {
+									Log(Error{"from": ss.Src(), "dst": ss.Dst(), "error": err.Error()})
+								}
+							}
+							if ss.Network() == "udp" {
+								if err := s.UDPOverTCPHandle(ss); err != nil {
+									Log(Error{"from": c.RemoteAddr().String(), "dst": ss.Dst(), "error": err.Error()})
+								}
 							}
 						}(&QUICConn{
 							Conn:   c,
@@ -172,23 +178,23 @@ func (s *QUICServer) ListenAndServe() error {
 					go func(c quic.Connection) {
 						defer c.CloseWithError(0, "defer")
 						for {
-							b, err := c.ReceiveMessage()
+							b, err := c.ReceiveDatagram(context.Background())
 							if err != nil {
 								return
 							}
 							conn, dstb, err := s.UDPServerConnFactory.Handle(c.RemoteAddr().(*net.UDPAddr), b, s.Password, func(b []byte) (int, error) {
 								if len(b) > 1197 {
 									err := errors.New("when write to client, quic max datagram size is 1197")
-									Log(&Error{"from": c.RemoteAddr().String(), "error": err.Error()})
+									Log(Error{"from": c.RemoteAddr().String(), "error": err.Error()})
 									return 0, err
 								}
-								if err := c.SendMessage(b); err != nil {
+								if err := c.SendDatagram(b); err != nil {
 									return 0, err
 								}
 								return len(b), nil
 							}, s.UDPTimeout)
 							if err != nil {
-								Log(&Error{"from": c.RemoteAddr().String(), "error": err.Error()})
+								Log(Error{"from": c.RemoteAddr().String(), "error": err.Error()})
 								continue
 							}
 							if conn == nil {
@@ -204,12 +210,12 @@ func (s *QUICServer) ListenAndServe() error {
 									ss, err = NewSimplePacketServer(s.Password, c.RemoteAddr().String(), conn, s.UDPTimeout, dstb)
 								}
 								if err != nil {
-									Log(&Error{"from": c.RemoteAddr().String(), "dst": socks5.ToAddress(dstb[0], dstb[1:len(dstb)-2], dstb[len(dstb)-2:]), "error": err.Error()})
+									Log(Error{"from": c.RemoteAddr().String(), "dst": socks5.ToAddress(dstb[0], dstb[1:len(dstb)-2], dstb[len(dstb)-2:]), "error": err.Error()})
 									return
 								}
 								defer ss.Clean()
 								if err := s.UDPHandle(ss); err != nil {
-									Log(&Error{"from": c.RemoteAddr().String(), "dst": socks5.ToAddress(dstb[0], dstb[1:len(dstb)-2], dstb[len(dstb)-2:]), "error": err.Error()})
+									Log(Error{"from": c.RemoteAddr().String(), "dst": socks5.ToAddress(dstb[0], dstb[1:len(dstb)-2], dstb[len(dstb)-2:]), "error": err.Error()})
 								}
 							}()
 						}
@@ -224,13 +230,25 @@ func (s *QUICServer) ListenAndServe() error {
 	})
 	go func() {
 		time.Sleep(1 * time.Second)
-		_, _ = quic.DialAddr(net.JoinHostPort(s.Domain, s.Addr[1:]), &tls.Config{NextProtos: []string{"h3"}}, nil)
+		_, _ = quic.DialAddr(context.Background(), net.JoinHostPort(s.Domain, s.Addr[1:]), &tls.Config{NextProtos: []string{"h3"}}, nil)
 	}()
 	return s.RunnerGroup.Wait()
 }
 
 func (s *QUICServer) TCPHandle(ss Exchanger) error {
 	rc, err := DialTCP("tcp", "", ss.Dst())
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+	if err := ss.Exchange(rc); err != nil {
+		return nil
+	}
+	return nil
+}
+
+func (s *QUICServer) UDPOverTCPHandle(ss Exchanger) error {
+	rc, err := NATDial("udp", ss.Src(), ss.Dst(), ss.Dst())
 	if err != nil {
 		return err
 	}

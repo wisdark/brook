@@ -18,9 +18,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -70,9 +71,8 @@ func ListHasIP(c4, c6 []*net.IPNet, i net.IP, c *cache.Cache, geo []string) bool
 		}
 	}
 	if len(geo) != 0 {
-		b := iploc.Country(i)
-		if b != nil {
-			bs := string(b)
+		bs := iploc.Country(i)
+		if bs != "" {
 			for _, v := range geo {
 				if v == bs {
 					if c != nil {
@@ -138,7 +138,7 @@ func ReadCIDRList(url string) ([]*net.IPNet, error) {
 	for _, v := range l {
 		_, in, err := net.ParseCIDR(v)
 		if err != nil {
-			Log(&Error{"when": "net.ParseCIDR", "cidr": v, "error": err.Error()})
+			Log(Error{"when": "net.ParseCIDR", "cidr": v, "error": err.Error()})
 			continue
 		}
 		c = append(c, in)
@@ -181,13 +181,13 @@ func ReadList(url string) ([]string, error) {
 			return nil, err
 		}
 		defer r.Body.Close()
-		data, err = ioutil.ReadAll(r.Body)
+		data, err = io.ReadAll(r.Body)
 		if err != nil {
 			return nil, err
 		}
 	}
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
-		data, err = ioutil.ReadFile(url)
+		data, err = os.ReadFile(url)
 		if err != nil {
 			return nil, err
 		}
@@ -234,13 +234,13 @@ func ReadData(url string) ([]byte, error) {
 			return nil, err
 		}
 		defer r.Body.Close()
-		data, err = ioutil.ReadAll(r.Body)
+		data, err = io.ReadAll(r.Body)
 		if err != nil {
 			return nil, err
 		}
 	}
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
-		data, err = ioutil.ReadFile(url)
+		data, err = os.ReadFile(url)
 		if err != nil {
 			return nil, err
 		}

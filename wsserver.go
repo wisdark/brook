@@ -17,38 +17,40 @@ package brook
 import (
 	"context"
 	"crypto/tls"
+	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/txthinking/brook/limits"
-	crypto1 "github.com/txthinking/crypto"
 	"github.com/urfave/negroni"
 	"golang.org/x/crypto/acme/autocert"
 )
 
 type WSServer struct {
-	Password     []byte
-	Domain       string
-	Addr         string
-	HTTPServer   *http.Server
-	TCPTimeout   int
-	UDPTimeout   int
-	Path         string
-	Cert         []byte
-	CertKey      []byte
-	WithoutBrook bool
+	Password      []byte
+	Domain        string
+	Addr          string
+	HTTPServer    *http.Server
+	TCPTimeout    int
+	UDPTimeout    int
+	Path          string
+	Cert          []byte
+	CertKey       []byte
+	WithoutBrook  bool
+	XForwardedFor bool
 }
 
 func NewWSServer(addr, password, domain, path string, tcpTimeout, udpTimeout int, withoutbrook bool) (*WSServer, error) {
 	if err := limits.Raise(); err != nil {
-		Log(&Error{"when": "try to raise system limits", "warning": err.Error()})
+		Log(Error{"when": "try to raise system limits", "warning": err.Error()})
 	}
 	p := []byte(password)
 	if withoutbrook {
 		var err error
-		p, err = crypto1.SHA256Bytes([]byte(password))
+		p, err = SHA256Bytes([]byte(password))
 		if err != nil {
 			return nil, err
 		}
@@ -101,16 +103,19 @@ func (s *WSServer) ListenAndServe() error {
 			Email:      "cloud@txthinking.com",
 		}
 		go func() {
-			Log(http.ListenAndServe(":80", m.HTTPHandler(nil)))
+			err := http.ListenAndServe(":80", m.HTTPHandler(nil))
+			if err != nil {
+				Log(err)
+			}
 		}()
-		t = &tls.Config{GetCertificate: m.GetCertificate}
+		t = &tls.Config{GetCertificate: m.GetCertificate, ServerName: s.Domain, NextProtos: []string{"http/1.1"}}
 	}
 	if s.Cert != nil && s.CertKey != nil {
 		ct, err := tls.X509KeyPair(s.Cert, s.CertKey)
 		if err != nil {
 			return err
 		}
-		t = &tls.Config{Certificates: []tls.Certificate{ct}, ServerName: s.Domain}
+		t = &tls.Config{Certificates: []tls.Certificate{ct}, ServerName: s.Domain, NextProtos: []string{"http/1.1"}}
 	}
 	s.HTTPServer = &http.Server{
 		Addr:         s.Addr,
@@ -147,26 +152,40 @@ func (s *WSServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	c := conn.UnderlyingConn()
 	defer c.Close()
+	from := c.RemoteAddr().String()
+	if s.XForwardedFor && r.Header.Get("X-Forwarded-For") != "" {
+		s1 := strings.Split(r.Header.Get("X-Forwarded-For"), ", ")[0]
+		h, _, err := net.SplitHostPort(s1)
+		if err != nil {
+			h = s1
+		}
+		if net.ParseIP(h) != nil {
+			_, p, err := net.SplitHostPort(from)
+			if err == nil {
+				from = net.JoinHostPort(h, p)
+			}
+		}
+	}
 	var ss Exchanger
 	if !s.WithoutBrook {
-		ss, err = NewStreamServer(s.Password, c.RemoteAddr().String(), c, s.TCPTimeout, s.UDPTimeout)
+		ss, err = NewStreamServer(s.Password, from, c, s.TCPTimeout, s.UDPTimeout)
 	}
 	if s.WithoutBrook {
-		ss, err = NewSimpleStreamServer(s.Password, c.RemoteAddr().String(), c, s.TCPTimeout, s.UDPTimeout)
+		ss, err = NewSimpleStreamServer(s.Password, from, c, s.TCPTimeout, s.UDPTimeout)
 	}
 	if err != nil {
-		Log(&Error{"from": c.RemoteAddr().String(), "error": err.Error()})
+		Log(Error{"from": from, "error": err.Error()})
 		return
 	}
 	defer ss.Clean()
 	if ss.Network() == "tcp" {
 		if err := s.TCPHandle(ss); err != nil {
-			Log(&Error{"from": c.RemoteAddr().String(), "dst": ss.Dst(), "error": err.Error()})
+			Log(Error{"from": from, "dst": ss.Dst(), "error": err.Error()})
 		}
 	}
 	if ss.Network() == "udp" {
 		if err := s.UDPHandle(ss); err != nil {
-			Log(&Error{"from": c.RemoteAddr().String(), "dst": ss.Dst(), "error": err.Error()})
+			Log(Error{"from": from, "dst": ss.Dst(), "error": err.Error()})
 		}
 	}
 }
